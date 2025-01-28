@@ -11,7 +11,8 @@ PROGRAM test_datasetreader
     [CHARACTER(LEN=5) :: 'rain', 'ps', 'Rain', 'Rainf']
   CHARACTER(LEN=300) :: RainFiles
 
-  INTEGER 
+  INTEGER :: FileIndex, IndexInFile
+
   RainFiles = '/home/lachlan/Work/ANU/rp23/experiments/2024-03-12_CABLE4-dev/'&
     //'lw5085/CABLE-as-ACCESS/MetForcing/ACCESS-ESM1p5-to-CABLE_Rainf_196*.nc'
 
@@ -21,6 +22,8 @@ PROGRAM test_datasetreader
   WRITE(*,*) "Index range:", Reader%IndexRange
   WRITE(*,*) "Start year:", Reader%StartYear
 
-  
+  CALL select_file(Reader, 5000, FileIndex, IndexInFile)
+
+  WRITE(*,*) "Selected file index:", FileIndex, " with index:", IndexInFile
 
 END PROGRAM test_datasetreader

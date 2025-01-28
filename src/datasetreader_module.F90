@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Wed 29 Jan 2025 08:51:18 AM AEDT
+! Last Modified: Wed 29 Jan 2025 09:53:53 AM AEDT
 
 MODULE datasetreader_module
 
@@ -448,17 +448,17 @@ SUBROUTINE select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
   ! find the first index that is greater than our desired index
   DO WHILE (LowerBound <= UpperBound)
     Middle = (LowerBound + UpperBound) / 2
-    IF (Reader%IndexRange(Middle) < IndexInDataset) THEN
-      ! Found index greater than or equal to the desired- check if it's our
-      ! target
+    IF (Reader%IndexRange(Middle) <= IndexInDataset) THEN
+      ! The middle index is less than or equal the desired index
       IF (Middle == 1 .OR. Reader%IndexRange(Middle+1) > IndexInDataset) THEN
         FileIndex = Middle
+        EXIT
       ELSE
-        ! Adjust the upper bound of our bracket
-        LowerBound = Middle
+        ! Adjust the lower bound of our bracket
+        LowerBound = Middle + 1
       END IF
     ELSE
-      ! Adjust the lower bound of our bracket
+      ! Adjust the upper bound of our bracket
       UpperBound = Middle - 1
     END IF
   END DO
