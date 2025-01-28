@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Thu 23 Jan 2025 05:08:45 PM AEDT
+! Last Modified: Wed 29 Jan 2025 08:51:18 AM AEDT
 
 MODULE datasetreader_module
 
@@ -8,7 +8,8 @@ USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
                   NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
                   NF90_NOWRITE
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
-                       read_time_string, add_to_date, days_since
+                       read_time_string, add_to_date, days_since,&
+                       intervals_since
 USE common_module, ONLY: sort, get_dimid, get_varid, handle_ncstat, LonNames,&
                          LatNames, TimeNames
 
@@ -33,9 +34,9 @@ TYPE DatasetReader
 
   ! Size of the timestep- we will compute this by inspecting the time dimension
   ! of the dataset, and check it against the request time step to ensure they
-  ! match. The core code refers to this as a REAL, but it should probably be
-  ! an INTEGER in future (how often will we need fractions of seconds?)
-  REAL :: TimestepSize
+  ! match. The core code refers to this as a REAL, but it's more likely we'll
+  ! want it as an integer
+  INTEGER :: TimestepSize
 
   ! List of netCDF variable names to search for
   CHARACTER(LEN=10), DIMENSION(:), ALLOCATABLE :: VarNames
@@ -46,8 +47,8 @@ END TYPE DatasetReader
 
 CONTAINS
 
-FUNCTION initialise_datasetreader(FileTemplate, VarNames, TimeStep)&
-    RESULT(NewReader)
+FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
+    StepSize) RESULT(NewReader)
   !*## Purpose
   !
   ! Initialise a new dataset reader using the provided file template and attach
@@ -63,6 +64,7 @@ FUNCTION initialise_datasetreader(FileTemplate, VarNames, TimeStep)&
 
   CHARACTER(LEN=*), INTENT(IN) :: FileTemplate
   CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
+  REAL, INTENT(IN) :: StepSize
 
   TYPE(DatasetReader) :: NewReader
 
@@ -85,12 +87,13 @@ FUNCTION initialise_datasetreader(FileTemplate, VarNames, TimeStep)&
 
   ! Attach the list of variable names to the reader
   NewReader%VarNames = VarNames
+  NewReader%TimestepSize = INT(StepSize)
 
   ! To avoid any first call annoyances, we will set the first file in the
   ! dataset as the "active" file and retrieve the desired variable ID.
   CALL mark_as_active(NewReader)
 
-END FUNCTION initialise_datasetreader
+END FUNCTION initialise_datasetreader_at_timestep
 
 FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   !*## Purpose
@@ -219,30 +222,36 @@ SUBROUTINE identify_start_year(Reader)
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
   ! Integers used for status, IDs and time value
-  INTEGER :: ok, ncID, tID, tAttrID, StartTime
+  INTEGER :: ok, ncID, tID, StartTime, RefYear, SecondsToYears
 
   ! String to hold the units attribute
   CHARACTER(LEN=33) :: TimeUnits
 
   ok = NF90_OPEN(Reader%DatasetFiles(1), NF90_NOWRITE, ncID)
   
-  tID = get_varid(ncID, 'time')
+  tID = get_varid(ncID, ['time'])
   ok = NF90_GET_VAR(ncID, tID, StartTime)
   
-  ok = NF90_GET_ATT(ncID, tAttrID, 'units', TimeUnits)
+  ok = NF90_GET_ATT(ncID, tID, 'units', TimeUnits)
   CALL handle_ncstat(ok, 'Time variable has no units attribute, so the start '&
     'time cannot be determined.')
 
+  ! Check that the units are valid
+  IF (TimeUnits(1:13) /= 'seconds since') THEN
+    WRITE(ERROR_UNIT,*) 'Invalid units for the time attribute.'
+    STOP 5
+  END IF
+
   ! We have made the stipulation that the time units MUST be 
   ! "seconds since YYYY-MM-DD HH:MM:SS", so we can trivially extract the year
-  READ(TimeUnits(14:17), *) RefYear
+  READ(TimeUnits(15:18), *) RefYear
   
   ! Convert the StartTime, which is in seconds, to a number of years (with the
   ! start year determined from the units attribute as the reference year)
   ! For simplicity, we should be able to round StartTime / SecondsInNonLeapYear
   ! and an accurate count for the number of years. We'd need to have 168 leap
   ! years in our calculation interval for this to return the wrong year
-  SecondsToYears = NINT(StartTime / (3600 * 24 * 365))
+  SecondsToYears = NINT(REAL(StartTime) / (3600 * 24 * 365))
   
   ! Finally we can set the start year for the data in our dataset
   Reader%StartYear = RefYear + SecondsToYears
@@ -375,7 +384,7 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
   ! the start of the dataset and the current day. Use this index to retrieve
   ! the correct record from the dataset.
 
-  INTEGER, INTENT(IN) :: Year, Timestep
+  INTEGER, INTENT(IN) :: Year, TimeIndex
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
   REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(INOUT) :: OutData
@@ -391,11 +400,45 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
     WRITE(ERROR_UNIT,*) "The DatasetReader does not have any data "//&
       "attached to it."
     STOP 5
-  END
+  END IF
 
   ! Count how many intervals (timesteps) between the start year of the dataset,
   ! and the desired step
-  IndexInDataset = intervals_since(Reader%StartYear, Year, TimeIndex) + 1
+  IndexInDataset = intervals_since(Reader%StartYear, Reader%TimeStepSize,&
+    Year, TimeIndex) + 1
+
+  ! Determine the file, and index in the given file, to read from
+  CALL select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
+
+  ! Is it the file that's currently open? If not, open a new file
+  IF (FileIndex /= Reader%CurrentFileIndex) THEN
+    CALL open_new_file_in_reader(Reader, FileIndex)
+  END IF
+
+  ! Actually retrieve the data
+  ok = NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
+    OutData, START=[1, 1, IndexInFile])
+  CALL handle_ncstat(ok, "Error retrieving NetCDF data from given day.")
+
+END SUBROUTINE get_data
+
+SUBROUTINE select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
+  !*## Purpose
+  !
+  ! Determine which file and the index in said file to retrieve data from.
+  !
+  !## Method
+  !
+  ! Use a binary search across the array of index ranges, stored with the
+  ! reader, to determine which file to read. Once this is known, the index
+  ! in the dataset can be determined.
+  TYPE(DatasetReader), INTENT(INOUT) :: Reader
+  INTEGER, INTENT(IN) :: IndexInDataset
+  INTEGER, INTENT(OUT) :: FileIndex
+  INTEGER, INTENT(OUT) :: IndexInFile
+
+  ! Variables required for the binary search
+  INTEGER :: Lowerbound, UpperBound, Middle
 
   ! Check which file we want by using a binary search
   LowerBound = 1
@@ -426,18 +469,7 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
     STOP 5
   END IF
 
-  ! Is it the file that's currently open? If not, open a new file
-  IF (FileIndex /= Reader%CurrentFileIndex) THEN
-    CALL open_new_file_in_reader(Reader, FileIndex)
-  END IF
-
-  ! Pull the data from the file
   IndexInFile = IndexInDataset - Reader%IndexRange(FileIndex) + 1
-
-  ok = NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
-    OutData, START=[1, 1, IndexInFile])
-  CALL handle_ncstat(ok, "Error retrieving NetCDF data from given day.")
-
-END SUBROUTINE read_data_from_day
+END SUBROUTINE select_file
 
 END MODULE datasetreader_module

@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Tue 14 Jan 2025 01:07:32 PM AEDT
+! Last Modified: Tue 28 Jan 2025 04:33:54 PM AEDT
 
 MODULE time_module
 
@@ -14,9 +14,8 @@ END ENUM
 
 INTEGER(KIND(CalendarType)) :: Calendar = Gregorian
 
-! A unit to indicate an error in the time module. Various compilers already
-! occupy most integers up to 1000.
-INTEGER, PARAMETER :: TimeError = 1005
+! Some compile time constants
+INTEGER, PARAMETER :: SecsInDay = 86400
 
 CONTAINS
 
@@ -38,7 +37,7 @@ SUBROUTINE set_calendar(CalendarString)
     Calendar = NoLeaps
   ELSE
     WRITE(ERROR_UNIT,*) TRIM(CalendarString), " is not a recognised calendar."
-    STOP TimeError
+    STOP 5
   END IF
 
 END SUBROUTINE set_calendar
@@ -68,7 +67,7 @@ FUNCTION days_in_month(Month, Year)
     days_in_month = 28 + leap_day(Year)
   ELSE
     WRITE(ERROR_UNIT, '(A)') "Invalid month passed to days_in_month."
-    STOP TimeError
+    STOP 5
   END IF
 END FUNCTION days_in_month
 
@@ -204,7 +203,7 @@ SUBROUTINE add_to_date(TimeIncrement, IncrementUnits, RefYear, RefDay, RefSec)
     IncrementYears = TimeIncrement
   ELSE
     WRITE(ERROR_UNIT, '(A)') "Invalid increment units passed to add_to_date."
-    STOP TimeError
+    STOP 5
   END IF
 
   ! Add the increment to the reference date
@@ -250,9 +249,35 @@ FUNCTION days_since(RefYear, RefDay, NewYear, NewDay)
   IF (days_since < 0) THEN
     WRITE(ERROR_UNIT, '(A)') "Error in days_since, reference date is later"//&
       " than the new date."
-    STOP TimeError
+    STOP 5
   END IF
 
 END FUNCTION days_since
 
+FUNCTION intervals_since(RefYear, TimestepSize, TargetYear, StepInYear)
+  !*## Purpose
+  !
+  ! Determine the number of time intervals from the start of RefYear to the
+  ! given timestep in the target year.
+  !
+  !## Method
+  !
+  ! Iterate through the years between the reference year and the target year,
+  ! counting the number of intervals in each year. Then add the step count in
+  ! the given year.
+  INTEGER :: RefYear, TimestepSize, TargetYear, StepInYear, intervals_since
+
+  ! Iterator
+  INTEGER :: YearIter, TotalSecs = 0
+
+  DO YearIter = RefYear, TargetYear-1
+    TotalSecs = TotalSecs + (365 + leap_day(YearIter)) * SecsInDay
+  END DO
+
+  ! Hopefully we have checked that the time step size fits nicely into the
+  ! larger intervals
+  intervals_since = TotalSecs / TimestepSize + intervals_since
+
+END FUNCTION intervals_since
+  
 END MODULE time_module
