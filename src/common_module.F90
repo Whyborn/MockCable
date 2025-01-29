@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Fri 08 Nov 2024 06:27:19 PM AEDT
+! Last Modified: Wed 29 Jan 2025 04:53:54 PM AEDT
 
 MODULE common_module
 
@@ -35,9 +35,9 @@ SUBROUTINE sort_int(IntArray, Indexer)
   ! in place. Optionally also returns the indexer which can be used to map other
   ! arrays to the same order.
 
-  INTEGER, DIMENSION(:), ALLOCATABLE, INTENT(INOUT) :: IntArray
+  INTEGER, DIMENSION(:), INTENT(INOUT) :: IntArray
   
-  INTEGER, DIMENSION(:), ALLOCATABLE, INTENT(OUT), OPTIONAL :: Indexer
+  INTEGER, DIMENSION(:), INTENT(OUT), OPTIONAL :: Indexer
 
   ! Indexers and temporary storage values
   INTEGER :: i, j, tmp
@@ -105,6 +105,83 @@ SUBROUTINE sort_real(RealArray, Indexer)
     END DO
   END DO
 END SUBROUTINE sort_real
+
+FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
+    RESULT(IndexOfLargest)
+  !*## Purpose
+  !
+  ! Find the index of the largest element in the ascending vector which is
+  ! smaller than the specified value.
+  !
+  !## Method
+  !
+  ! Use a binary search to logarithmically approach the desired index.
+
+  ! Variables required for the binary search
+
+  INTEGER, DIMENSION(:) :: Values
+  INTEGER :: UpperLimit
+  INTEGER IndexOfLargest
+
+  INTEGER :: Lowerbound, UpperBound, Middle
+
+  ! Set an initial value for the Index
+  IndexOfLargest = 0
+
+  ! Check which file we want by using a binary search
+  LowerBound = 1
+  UpperBound = SIZE(Values)
+
+  ! Remember IndexRange contains the last index for each file- so we want to
+  ! find the first index that is greater than our desired index
+  DO WHILE (LowerBound <= UpperBound)
+    Middle = (LowerBound + UpperBound) / 2
+    IF (Values(Middle) < UpperLimit) THEN
+      ! The middle index is less than or equal the desired index
+      IF (Middle == 1 .OR. Values(Middle+1) >= UpperLimit) THEN
+        EXIT
+      ELSE
+        ! Adjust the lower bound of our bracket
+        LowerBound = Middle + 1
+      END IF
+    ELSE
+      ! Adjust the upper bound of our bracket
+      UpperBound = Middle - 1
+    END IF
+  END DO
+
+  IndexOfLargest = Middle
+
+END FUNCTION find_largest_element_less_than_sorted
+
+FUNCTION approx_equal(LHS, RHS, Tolerance) RESULT(IsEqual)
+  !*## Purpose
+  !
+  ! Check whether two floating point numbers are approximately equal, with some
+  ! tolerance.
+  !
+  !## Method
+  !
+  ! Check whether the delta between the LHS and RHS is greater than the
+  ! tolerance.
+
+  REAL :: LHS, RHS
+  REAL, OPTIONAL :: Tolerance
+  LOGICAL :: IsEqual
+
+  ! Set a default value for the tolerance if it is not already set
+  IF (PRESENT(Tolerance)) THEN
+    Tolerance = 1e-8
+  END IF
+
+  ! Check the delta
+  IF (ABS(RHS - LHS) <= Tolerance) THEN
+    IsEqual = .TRUE.
+  ELSE
+    IsEqual = .FALSE.
+  END IF
+
+END FUNCTION approx_equal
 
 FUNCTION get_dimid(ncID, DimNames) RESULT(DimID)
   !*## Purpose

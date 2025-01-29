@@ -1,0 +1,6 @@
+&cablenml
+    StartYear = 1960
+    EndYear = 1965
+    Calendar = "gregorian"
+    Dt = 10800.0
+/

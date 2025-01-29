@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Wed 29 Jan 2025 09:53:53 AM AEDT
+! Last Modified: Wed 29 Jan 2025 05:02:19 PM AEDT
 
 MODULE datasetreader_module
 
@@ -11,7 +11,8 @@ USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, add_to_date, days_since,&
                        intervals_since
 USE common_module, ONLY: sort, get_dimid, get_varid, handle_ncstat, LonNames,&
-                         LatNames, TimeNames
+                         LatNames, TimeNames, approx_equal,&
+                         find_largest_element_less_than_sorted
 
 IMPLICIT NONE
 
@@ -22,7 +23,7 @@ TYPE DatasetReader
   ! NetCDF files. The data structure facilitates transparent reading of data
   ! from a given time.
 
-  ! An "active" flag
+  ! An 'active' flag
   LOGICAL :: HasData = .FALSE.
 
   ! List of files in the dataset, and their indices
@@ -56,7 +57,7 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   !
   !## Method
   !
-  ! Treat the FileTemplate like a glob string with "find FileTemplate -type f,l"
+  ! Treat the FileTemplate like a glob string with 'find FileTemplate -type f,l'
   ! to get a list of all the files (and symlinks) matching the template. Sort 
   ! these files by their temporal order by inspecting the time variable.
   ! Attach an array of  ! possible netCDF variables to search by when retrieving
@@ -77,6 +78,8 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   ! Now sort them by their starting data and attach it to the Reader
   NewReader%DatasetFiles = sort_by_start_date(ListOfFiles)
 
+  WRITE(*,*) "File template:", FileTemplate
+  WRITE(*,*) "List of files:", NewReader%DatasetFiles
   ! To correctly retrieve indices later, we need to know at what year the
   ! dataset begins.
   CALL identify_start_year(NewReader)
@@ -85,12 +88,12 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   ! of the files in the dataset
   NewReader%IndexRange = assign_file_indices(NewReader%DatasetFiles)
 
-  ! Attach the list of variable names to the reader
+  ! Attach the timestep and variables
   NewReader%VarNames = VarNames
   NewReader%TimestepSize = INT(StepSize)
 
   ! To avoid any first call annoyances, we will set the first file in the
-  ! dataset as the "active" file and retrieve the desired variable ID.
+  ! dataset as the 'active' file and retrieve the desired variable ID.
   CALL mark_as_active(NewReader)
 
 END FUNCTION initialise_datasetreader_at_timestep
@@ -103,7 +106,7 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   !
   !## Method
   !
-  ! Passes the FileTemplate to the unix command "find FileTemplate -type f" for
+  ! Passes the FileTemplate to the unix command 'find FileTemplate -type f' for
   ! bash terminals and pipes the result to a temporary file. Reads the temporary
   ! file back in to construct an array of file names.
 
@@ -120,24 +123,25 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   ! created using a random integer so it's retrievable later and unlikely to
   ! clash with other mpi processes- maybe in future we can use it's MPI rank?
   ! Note: may need alternatives for users not using bash
-  CALL execute_command_line("find "//TRIM(FileTemplate)//&
-    " -type f,l > __tempfile__.txt")
+  CALL execute_command_line('find '//TRIM(FileTemplate)//&
+    ' -type f,l > __tempfile__.txt')
 
-  OPEN(NEWUNIT=FileUnit, FILE="__tempfile__.txt", IOSTAT=ios)
+  OPEN(NEWUNIT=FileUnit, FILE='__tempfile__.txt', IOSTAT=ios)
 
-  ! We just use 1000 as a "sufficiently larger number" here- it's the upper
+  ! We just use 1000 as a 'sufficiently larger number' here- it's the upper
   ! limit to the number of files we could possibly have in a dataset reader
   ReadFilenames: DO LineCounter = 1, 1000
     ! Read a line from the file into the temporary array
     READ(FileUnit, '(A)', IOSTAT=ios) TempListOfFiles(LineCounter)
 
+    WRITE(*,*) TempListOfFiles(LineCounter)
     IF (ios < 0) THEN
       ! Read reached EOF
       EXIT ReadFilenames
     ELSEIF (ios /= 0) THEN
       ! Something else went wrong
-      WRITE(ERROR_UNIT,*) "Reading the list of files in the DatasetReader "//&
-        "failed."
+      WRITE(ERROR_UNIT,*) 'Reading the list of files in the DatasetReader '//&
+        'failed.'
       STOP ios
     END IF
   END DO ReadFileNames
@@ -147,7 +151,7 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   LineCounter = LineCounter - 1
 
   IF (LineCounter == 0) THEN
-    WRITE(ERROR_UNIT,*) "Glob returned zero files."
+    WRITE(ERROR_UNIT,*) 'Glob returned zero files.'
 
     STOP 1
   END IF
@@ -158,7 +162,7 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   ListOfFiles(:) = TempListOfFiles(1:LineCounter)
 
   ! Remove the temporary file
-  CALL execute_command_line("rm __tempfile__.txt")
+  CALL execute_command_line('rm __tempfile__.txt')
 
 END FUNCTION glob_files
   
@@ -227,8 +231,9 @@ SUBROUTINE identify_start_year(Reader)
   ! String to hold the units attribute
   CHARACTER(LEN=33) :: TimeUnits
 
-  ok = NF90_OPEN(Reader%DatasetFiles(1), NF90_NOWRITE, ncID)
+  ok = NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE, ncID)
   
+  WRITE(*,*) "Attempting to read time from:", TRIM(Reader%DatasetFiles(1))
   tID = get_varid(ncID, ['time'])
   ok = NF90_GET_VAR(ncID, tID, StartTime)
   
@@ -243,7 +248,7 @@ SUBROUTINE identify_start_year(Reader)
   END IF
 
   ! We have made the stipulation that the time units MUST be 
-  ! "seconds since YYYY-MM-DD HH:MM:SS", so we can trivially extract the year
+  ! 'seconds since YYYY-MM-DD HH:MM:SS', so we can trivially extract the year
   READ(TimeUnits(15:18), *) RefYear
   
   ! Convert the StartTime, which is in seconds, to a number of years (with the
@@ -285,7 +290,7 @@ FUNCTION assign_file_indices(DatasetFiles) RESULT(IndexRange)
 
   CountFiles: DO FileCounter = 1, (SIZE(DatasetFiles)-1)
     ok = NF90_OPEN(DatasetFiles(FileCounter), NF90_NOWRITE, ncID)
-    ok = NF90_INQ_DIMID(ncID, "time", tID)
+    ok = NF90_INQ_DIMID(ncID, 'time', tID)
     ok = NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength)
 
     TimeIndex = TimeIndex + DimLength
@@ -295,6 +300,64 @@ FUNCTION assign_file_indices(DatasetFiles) RESULT(IndexRange)
 
 END FUNCTION assign_file_indices
 
+SUBROUTINE verify_validity(Reader)
+  !*## Purpose
+  !
+  ! Verify that the data attached to the dataset is valid for reading.
+  !
+  !## Method
+  !
+  ! Run through the requirements for a dataset to be valid. There requirements
+  ! are:
+  !
+  ! * The time intervals are the same between each file
+  ! * Each file has a recognised variable name
+
+  TYPE(DatasetReader), INTENT(IN) :: Reader
+
+  ! Iterator for the files and NetCDF ids
+  INTEGER :: FileIter, ncID, tID, DimLength, ok
+
+  ! Variables to store the end time of a dataset/start time of next
+  ! Initialise interval to some absurd number
+  REAL :: EndTime, NextStartTime, Interval
+
+  ! Get the first end time manually, since we have nothing to check against
+  ok = NF90_OPEN(Reader%DatasetFiles(1), NF90_NOWRITE, ncID)
+  ok = NF90_INQ_DIMID(ncID, 'time', tID)
+  ok = NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength)
+
+  tID = get_varid(ncID, ['time'])
+  ok = NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength])
+
+  ! Now we can iterate through the remainder of the files
+  DO FileIter = 2, SIZE(Reader%DatasetFiles)
+    ok = NF90_OPEN(Reader%DatasetFiles(FileIter), NF90_NOWRITE, ncID)
+    ok = NF90_INQ_DIMID(ncID, 'time', tID)
+    ok = NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength)
+
+    tID = get_varid(ncID, ['time'])
+    ! Get the first time from the new file
+    ok = NF90_GET_VAR(ncID, tID, NextStartTime, START=[1])
+
+    ! Only check the interval on the second iteration, as we have no interval
+    ! to compare against on the first
+    IF (FileIter >= 3) THEN
+      IF (.NOT. approx_equal(NextStartTime - EndTime, Interval)) THEN
+        WRITE(ERROR_UNIT,*) 'The time intervals between each file are not '//&
+          'the same.'
+        STOP 5
+      END IF
+    ELSE
+      Interval = NextStartTime - EndTime
+    END IF
+
+    ! Set the new end time
+    ok = NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength])
+  END DO
+
+END SUBROUTINE verify_validity
+    
 SUBROUTINE mark_as_active(Reader)
   !*## Purpose
   !
@@ -363,13 +426,13 @@ SUBROUTINE get_spatial_dimensions(Reader, xDimLength, yDimLength)
   ! We already have the ncID from the reader
   xID = get_dimid(Reader%CurrentFileID, LonNames)
   ok = NF90_INQUIRE_DIMENSION(Reader%CurrentFileID, xID, LEN=xDimLength)
-  CALL handle_ncstat(ok, "Failed retrieving longitude dimension in get_spatial"&
-    //"dimensions.")
+  CALL handle_ncstat(ok, 'Failed retrieving longitude dimension in get_spatial'&
+    //'dimensions.')
 
   yID = get_dimid(Reader%CurrentFileID, LatNames)
   ok = NF90_INQUIRE_DIMENSION(Reader%CurrentFileID, yID, LEN=yDimLength)
-  CALL handle_ncstat(ok, "Failed retrieving latitude dimension in get_spatial"&
-    //"dimensions.")
+  CALL handle_ncstat(ok, 'Failed retrieving latitude dimension in get_spatial'&
+    //'dimensions.')
 
 END SUBROUTINE get_spatial_dimensions
 
@@ -397,8 +460,8 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
 
   ! Make sure the reader we've tried to index actually has data attached to it
   IF (.NOT. Reader%HasData) THEN
-    WRITE(ERROR_UNIT,*) "The DatasetReader does not have any data "//&
-      "attached to it."
+    WRITE(ERROR_UNIT,*) 'The DatasetReader does not have any data '//&
+      'attached to it.'
     STOP 5
   END IF
 
@@ -415,10 +478,12 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
     CALL open_new_file_in_reader(Reader, FileIndex)
   END IF
 
+  WRITE(*,*) "For Year:", Year, "and step:", TimeIndex, ", FileIndex:",&
+  FileIndex, ", IndexInFile:", IndexInFile
   ! Actually retrieve the data
   ok = NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
     OutData, START=[1, 1, IndexInFile])
-  CALL handle_ncstat(ok, "Error retrieving NetCDF data from given day.")
+  CALL handle_ncstat(ok, 'Error retrieving NetCDF data from given day.')
 
 END SUBROUTINE get_data
 
@@ -437,35 +502,13 @@ SUBROUTINE select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
   INTEGER, INTENT(OUT) :: FileIndex
   INTEGER, INTENT(OUT) :: IndexInFile
 
-  ! Variables required for the binary search
-  INTEGER :: Lowerbound, UpperBound, Middle
-
-  ! Check which file we want by using a binary search
-  LowerBound = 1
-  UpperBound = SIZE(Reader%IndexRange)
-
-  ! Remember IndexRange contains the last index for each file- so we want to
-  ! find the first index that is greater than our desired index
-  DO WHILE (LowerBound <= UpperBound)
-    Middle = (LowerBound + UpperBound) / 2
-    IF (Reader%IndexRange(Middle) <= IndexInDataset) THEN
-      ! The middle index is less than or equal the desired index
-      IF (Middle == 1 .OR. Reader%IndexRange(Middle+1) > IndexInDataset) THEN
-        FileIndex = Middle
-        EXIT
-      ELSE
-        ! Adjust the lower bound of our bracket
-        LowerBound = Middle + 1
-      END IF
-    ELSE
-      ! Adjust the upper bound of our bracket
-      UpperBound = Middle - 1
-    END IF
-  END DO
-
   ! Throw an error if the FileIndex == 0, since it means something went wrong
+
+  FileIndex = find_largest_element_less_than_sorted(Reader%IndexRange,&
+    IndexInDataset)
+
   IF (FileIndex == 0) THEN
-    WRITE(ERROR_UNIT,*) "Something went wrong when indexing the dataset."
+    WRITE(ERROR_UNIT,*) 'Something went wrong when indexing the dataset.'
     STOP 5
   END IF
 

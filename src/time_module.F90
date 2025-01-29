@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Tue 28 Jan 2025 04:33:54 PM AEDT
+! Last Modified: Wed 29 Jan 2025 03:54:10 PM AEDT
 
 MODULE time_module
 
@@ -94,6 +94,27 @@ FUNCTION is_leapyear(Year)
     END IF
   END IF
 END FUNCTION is_leapyear
+
+FUNCTION days_in_year(Year)
+  !*## Purpose
+  !
+  ! Determine the number of the days in the year.
+  !
+  !## Method
+  !
+  ! Check the year against the given calendar to determine the number of days
+  ! in the passed year.
+
+  INTEGER :: Year
+  INTEGER :: days_in_year
+
+  days_in_year = 365
+
+  IF (is_leapyear(Year)) THEN
+    days_in_year = 366
+  END IF
+
+END FUNCTION days_in_year
 
 FUNCTION leap_day(Year)
   !*## Purpose
