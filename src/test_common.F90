@@ -34,17 +34,18 @@ END SUBROUTINE test_sort
 SUBROUTINE test_find_largest_element_less_than_sorted()
   INTEGER, DIMENSION(10) :: vSimple = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   INTEGER, DIMENSION(8) :: vDup = [1, 2, 2, 4, 5, 6, 6, 10]
-  INTEGER :: UpperLimit = 7
+  INTEGER :: UpperLimit = 3
   INTEGER :: vSimpleAns, vDupAns
 
   vSimpleAns = find_largest_element_less_than_sorted(vSimple, UpperLimit)
   vDupAns = find_largest_element_less_than_sorted(vDup, UpperLimit)
 
-  IF (vSimpleAns /= 6) THEN
+  IF (vSimpleAns /= 2) THEN
     WRITE(*,*) "Find largest test 1 failed"
+    WRITE(*,*) "Computed result is:", vSimpleAns
   END IF
 
-  IF (vDupAns /= 7) THEN
+  IF (vDupAns /= 3) THEN
     WRITE(*,*) "Find largest test 2 failed"
   END IF
 END SUBROUTINE test_find_largest_element_less_than_sorted

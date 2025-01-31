@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Wed 29 Jan 2025 05:02:19 PM AEDT
+! Last Modified: Fri 31 Jan 2025 03:04:06 PM AEDT
 
 MODULE datasetreader_module
 
@@ -72,29 +72,30 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   ! Array to hold all the file names matching the template
   CHARACTER(LEN=250), DIMENSION(:), ALLOCATABLE :: ListOfFiles
 
-  ! First, retrieve the set of filenames matching the template
-  ListOfFiles = glob_files(FileTemplate)
+  ! Only initialise if the FileTemplate is not an empty string
+  IF (.NOT. TRIM(FileTemplate) == "") THEN
+    ! First, retrieve the set of filenames matching the template
+    ListOfFiles = glob_files(FileTemplate)
 
-  ! Now sort them by their starting data and attach it to the Reader
-  NewReader%DatasetFiles = sort_by_start_date(ListOfFiles)
+    ! Now sort them by their starting data and attach it to the Reader
+    NewReader%DatasetFiles = sort_by_start_date(ListOfFiles)
 
-  WRITE(*,*) "File template:", FileTemplate
-  WRITE(*,*) "List of files:", NewReader%DatasetFiles
-  ! To correctly retrieve indices later, we need to know at what year the
-  ! dataset begins.
-  CALL identify_start_year(NewReader)
+    ! To correctly retrieve indices later, we need to know at what year the
+    ! dataset begins.
+    CALL identify_start_year(NewReader)
 
-  ! Now we have a sorted list, it's easier to assign indices to each
-  ! of the files in the dataset
-  NewReader%IndexRange = assign_file_indices(NewReader%DatasetFiles)
+    ! Now we have a sorted list, it's easier to assign indices to each
+    ! of the files in the dataset
+    NewReader%IndexRange = assign_file_indices(NewReader%DatasetFiles)
 
-  ! Attach the timestep and variables
-  NewReader%VarNames = VarNames
-  NewReader%TimestepSize = INT(StepSize)
+    ! Attach the timestep and variables
+    NewReader%VarNames = VarNames
+    NewReader%TimestepSize = INT(StepSize)
 
-  ! To avoid any first call annoyances, we will set the first file in the
-  ! dataset as the 'active' file and retrieve the desired variable ID.
-  CALL mark_as_active(NewReader)
+    ! To avoid any first call annoyances, we will set the first file in the
+    ! dataset as the 'active' file and retrieve the desired variable ID.
+    CALL mark_as_active(NewReader)
+  END IF
 
 END FUNCTION initialise_datasetreader_at_timestep
 
@@ -134,7 +135,6 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
     ! Read a line from the file into the temporary array
     READ(FileUnit, '(A)', IOSTAT=ios) TempListOfFiles(LineCounter)
 
-    WRITE(*,*) TempListOfFiles(LineCounter)
     IF (ios < 0) THEN
       ! Read reached EOF
       EXIT ReadFilenames
@@ -233,13 +233,11 @@ SUBROUTINE identify_start_year(Reader)
 
   ok = NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE, ncID)
   
-  WRITE(*,*) "Attempting to read time from:", TRIM(Reader%DatasetFiles(1))
   tID = get_varid(ncID, ['time'])
   ok = NF90_GET_VAR(ncID, tID, StartTime)
   
   ok = NF90_GET_ATT(ncID, tID, 'units', TimeUnits)
-  CALL handle_ncstat(ok, 'Time variable has no units attribute, so the start '&
-    'time cannot be determined.')
+  CALL handle_ncstat(ok, 'Failed to read the time attribute from the file.')
 
   ! Check that the units are valid
   IF (TimeUnits(1:13) /= 'seconds since') THEN
@@ -280,10 +278,13 @@ FUNCTION assign_file_indices(DatasetFiles) RESULT(IndexRange)
   INTEGER, DIMENSION(:), ALLOCATABLE :: IndexRange
 
   ! Iterators, netCDF IDs and dimension sizes
-  INTEGER :: FileCounter, ncID, tID, ok, DimLength, TimeIndex = 1
+  INTEGER :: FileCounter, ncID, tID, ok, DimLength, TimeIndex
 
   ! Allocate memory for the indices
   ALLOCATE(IndexRange(SIZE(DatasetFiles)))
+
+  ! Set the TimeIndex to 1
+  TimeIndex = 1
 
   ! The first index is set to 1
   IndexRange(1) = TimeIndex
@@ -468,7 +469,7 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
   ! Count how many intervals (timesteps) between the start year of the dataset,
   ! and the desired step
   IndexInDataset = intervals_since(Reader%StartYear, Reader%TimeStepSize,&
-    Year, TimeIndex) + 1
+    Year, TimeIndex)
 
   ! Determine the file, and index in the given file, to read from
   CALL select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
@@ -478,12 +479,10 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
     CALL open_new_file_in_reader(Reader, FileIndex)
   END IF
 
-  WRITE(*,*) "For Year:", Year, "and step:", TimeIndex, ", FileIndex:",&
-  FileIndex, ", IndexInFile:", IndexInFile
   ! Actually retrieve the data
   ok = NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
     OutData, START=[1, 1, IndexInFile])
-  CALL handle_ncstat(ok, 'Error retrieving NetCDF data from given day.')
+  CALL handle_ncstat(ok, 'Error retrieving NetCDF data from given timestep.')
 
 END SUBROUTINE get_data
 

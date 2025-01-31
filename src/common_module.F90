@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Wed 29 Jan 2025 04:53:54 PM AEDT
+! Last Modified: Thu 30 Jan 2025 11:12:59 AM AEDT
 
 MODULE common_module
 
@@ -37,13 +37,14 @@ SUBROUTINE sort_int(IntArray, Indexer)
 
   INTEGER, DIMENSION(:), INTENT(INOUT) :: IntArray
   
-  INTEGER, DIMENSION(:), INTENT(OUT), OPTIONAL :: Indexer
+  INTEGER, DIMENSION(:), ALLOCATABLE, INTENT(OUT), OPTIONAL :: Indexer
 
   ! Indexers and temporary storage values
   INTEGER :: i, j, tmp
 
   ! Fill the indexer with the 1:N, if required
   IF (PRESENT(Indexer)) THEN
+    ALLOCATE(Indexer(SIZE(IntArray)))
     Indexer = [(i, i = 1, SIZE(IntArray))]
   END IF
 
@@ -136,9 +137,9 @@ FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
   ! find the first index that is greater than our desired index
   DO WHILE (LowerBound <= UpperBound)
     Middle = (LowerBound + UpperBound) / 2
-    IF (Values(Middle) < UpperLimit) THEN
+    IF (Values(Middle) <= UpperLimit) THEN
       ! The middle index is less than or equal the desired index
-      IF (Middle == 1 .OR. Values(Middle+1) >= UpperLimit) THEN
+      IF (Values(Middle+1) > UpperLimit) THEN
         EXIT
       ELSE
         ! Adjust the lower bound of our bracket

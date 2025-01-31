@@ -1,6 +1,6 @@
 &cablenml
     StartYear = 1960
-    EndYear = 1965
+    EndYear = 1960
     Calendar = "gregorian"
     Dt = 10800.0
 /

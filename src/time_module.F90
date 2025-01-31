@@ -1,5 +1,5 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Wed 29 Jan 2025 03:54:10 PM AEDT
+! Last Modified: Thu 30 Jan 2025 11:18:26 AM AEDT
 
 MODULE time_module
 
@@ -289,7 +289,10 @@ FUNCTION intervals_since(RefYear, TimestepSize, TargetYear, StepInYear)
   INTEGER :: RefYear, TimestepSize, TargetYear, StepInYear, intervals_since
 
   ! Iterator
-  INTEGER :: YearIter, TotalSecs = 0
+  INTEGER :: YearIter, TotalSecs
+
+  ! Set the total seconds
+  TotalSecs = 0
 
   DO YearIter = RefYear, TargetYear-1
     TotalSecs = TotalSecs + (365 + leap_day(YearIter)) * SecsInDay
@@ -297,7 +300,7 @@ FUNCTION intervals_since(RefYear, TimestepSize, TargetYear, StepInYear)
 
   ! Hopefully we have checked that the time step size fits nicely into the
   ! larger intervals
-  intervals_since = TotalSecs / TimestepSize + intervals_since
+  intervals_since = TotalSecs / TimestepSize + StepInYear
 
 END FUNCTION intervals_since
   

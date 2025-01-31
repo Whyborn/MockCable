@@ -8,19 +8,35 @@ USE common_module, ONLY: handle_ncstat
 
 IMPLICIT NONE
 
+TYPE MetType
+  REAL, DIMENSION(:), ALLOCATABLE :: Rain, Pressure, Temperature, Wind,&
+    ShortwaveRad, LongwaveRad
+END TYPE MetType
+
 TYPE MetContainer
   REAL, DIMENSION(:,:), ALLOCATABLE :: VarData
 END TYPE MetContainer
 
 INTEGER, DIMENSION(:), ALLOCATABLE :: LonIDs, LatIDs
+
+! Set up the variable IDs
 INTEGER, PARAMETER :: RainID = 1, TemperatureID = 2, WindID = 3,&
-  PressureID = 4, NumVariables = 4
+  PressureID = 4, ShortwaveRadID = 5, LongwaveRadID = 6, NumVariables = 6
+
+! Specify which ones are required
+INTEGER, DIMENSION(5) :: RequiredVariables =&
+  [RainID, TemperatureID, WindID, PressureID, ShortwaveRadID]
+
+! And which ones are optional
+INTEGER, DIMENSION(1) :: OptionalVariables =&
+  [LongwaveRadID]
+
 TYPE(DatasetReader), DIMENSION(NumVariables) :: MetDataReaders
 TYPE(MetContainer), DIMENSION(NumVariables) :: MetContainers
 
 CONTAINS
 
-SUBROUTINE prepare_meteorology(Timestep, NPoints)
+SUBROUTINE prepare_meteorology(Timestep, NPoints, Met)
   !*## Purpose
   !
   ! Prepare the meteorology input routines and land mask
@@ -32,21 +48,36 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints)
 
   REAL, INTENT(IN) :: Timestep
   INTEGER, INTENT(OUT) :: NPoints
+  TYPE(MetType), INTENT(OUT) :: Met
 
   CHARACTER(LEN=300) :: RainFile, TemperatureFile, WindFile, PressureFile,&
-    LandmaskFile
+    ShortwaveRadFile, LongwaveRadFile, LandmaskFile
 
   INTEGER :: nmlUnit
 
   NAMELIST /metnml/ RainFile, TemperatureFile, WindFile, PressureFile,&
-  LandmaskFile
+  ShortwaveRadFile, LongwaveRadFile, LandmaskFile
   
+  ! Set the default values for the files
+  RainFile = ""
+  TemperatureFile = ""
+  WindFile = ""
+  PressureFile = ""
+  ShortwaveRadFile = ""
+  LongwaveRadFile = ""
+  LandmaskFile = ""
+
   OPEN(NEWUNIT=nmlUnit, FILE='met.nml', STATUS='OLD', ACTION='READ')
   READ(nmlUnit, NML=metnml)
   CLOSE(nmlUnit)
 
   NPoints = prepare_landmask(LandmaskFile)
 
+  ! Allocate memory
+  ALLOCATE(Met%Rain(NPoints), Met%Temperature(NPoints), Met%Wind(NPoints),&
+    Met%Pressure(NPoints), Met%ShortwaveRad(NPoints), Met%LongwaveRad(NPoints))
+
+  ! Initialise the dataset readers
   MetDataReaders(RainID) = initialise_datasetreader_at_timestep(&
     RainFile, ['Rainf'], Timestep)
   MetDataReaders(TemperatureID) = initialise_datasetreader_at_timestep(&
@@ -55,6 +86,10 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints)
     WindFile, ['wind'], Timestep)
   MetDataReaders(PressureID) = initialise_datasetreader_at_timestep(&
     PressureFile, ['Psurf'], Timestep)
+  MetDataReaders(ShortwaveRadID) = initialise_datasetreader_at_timestep(&
+    ShortwaveRadFile, ['SWdown'], Timestep)
+  MetDataReaders(LongwaveRadID) = initialise_datasetreader_at_timestep(&
+    LongwaveRadFile, ['LWdown'], Timestep)
 
 END SUBROUTINE prepare_meteorology
 
@@ -127,7 +162,7 @@ FUNCTION prepare_landmask(LandmaskFile) RESULT(NPoints)
 
 END FUNCTION prepare_landmask
 
-SUBROUTINE get_meteorology(Year, Timestep)
+SUBROUTINE get_meteorology(Year, Timestep, Met)
   !*## Purpose
   !
   ! Apply the meteorology from a given year and timestep.
@@ -139,14 +174,41 @@ SUBROUTINE get_meteorology(Year, Timestep)
   ! record based off the landmask.
 
   INTEGER, INTENT(IN) :: Year, Timestep
+  TYPE(MetType), INTENT(INOUT) :: Met
 
   ! Iterators
   INTEGER :: VarIter, Point
 
-  DO VarIter = 1, NumVariables
-    CALL get_data(MetContainers(VarIter)%VarData, MetDataReaders(VarIter), Year,&
-      Timestep)
+  DO VarIter = 1, SIZE(RequiredVariables)
+    CALL get_data(MetContainers(VarIter)%VarData, MetDataReaders(VarIter),&
+      Year, Timestep)
   END DO
+
+  ! Apply the data
+  DO Point = 1, SIZE(LonIDs)
+    Met%Rain(Point) =&
+      MetContainers(RainID)%VarData(LonIDs(Point), LatIDs(Point))
+    Met%Pressure(Point) =&
+      MetContainers(PressureID)%VarData(LonIDs(Point), LatIDs(Point))
+    Met%Temperature(Point) =&
+      MetContainers(TemperatureID)%VarData(LonIDs(Point), LatIDs(Point))
+    Met%Wind(Point) =&
+      MetContainers(WindID)%VarData(LonIDs(Point), LatIDs(Point))
+    Met%ShortwaveRad(Point) =&
+      MetContainers(ShortwaveRadID)%VarData(LonIDs(Point), LatIDs(Point))
+  END DO
+
+  ! Handle optional variables
+  IF (MetDataReaders(LongwaveRadID)%HasData) THEN
+    CALL get_data(MetContainers(LongwaveRadID)%VarData,&
+      MetDataReaders(LongwaveRadID), Year, Timestep)
+    DO Point = 1, SIZE(LonIDs)
+      Met%LongwaveRad(Point) =&
+        MetContainers(LongwaveRadID)%VarData(LonIDs(Point), LatIDs(Point))
+    END DO
+  ELSE
+    Met%LongwaveRad(:) = Met%ShortwaveRad(:)
+  END IF
 
 END SUBROUTINE get_meteorology
 
