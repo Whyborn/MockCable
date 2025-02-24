@@ -2,7 +2,7 @@
 ! Copyright (c) 2015, Commonwealth Scientific and Industrial Research Organisation
 ! (CSIRO) ABN 41 687 119 230.
 
-MODULE cable_mpi_mod
+MODULE mpi_module
   !! Module for handling some common MPI operations and MPI groups
 #ifdef __MPI__
   USE mpi

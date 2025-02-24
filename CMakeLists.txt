@@ -25,6 +25,7 @@ add_library(
 
 add_executable(
     mock-cable
+    src/mpi_module.F90
     src/mock_cable.F90
 )
 target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
