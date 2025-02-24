@@ -1,9 +1,10 @@
 ! Author: Lachlan Whyborn
-! Last Modified: Fri 31 Jan 2025 03:04:06 PM AEDT
+! Last Modified: Mon 24 Feb 2025 02:42:32 PM AEDT
 
 MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
+USE mpi_module, ONLY: mpi_grp_t
 USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
                   NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
                   NF90_NOWRITE
@@ -44,6 +45,9 @@ TYPE DatasetReader
 
   ! ID for the current file and variable
   INTEGER :: CurrentFileID, CurrentVarID, CurrentFileIndex
+
+  ! MPI information
+  TYPE(mpi_grp_t) :: mpi_grp
 END TYPE DatasetReader
 
 CONTAINS
@@ -401,7 +405,7 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   INTEGER :: ok
 
   ok = NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
-    Reader%CurrentFileID)
+    Reader%CurrentFileID. Reader%mpi_grp%comm, MPI_INFO_NULL)
   Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)
   Reader%CurrentFileIndex = FileIndex
 
