@@ -1,9 +1,7 @@
-! Author: Lachlan Whyborn
-! Last Modified: Mon 24 Feb 2025 02:42:32 PM AEDT
-
 MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
+USE mpi
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
                   NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
@@ -53,7 +51,7 @@ END TYPE DatasetReader
 CONTAINS
 
 FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
-    StepSize) RESULT(NewReader)
+    StepSize, mpi_grp) RESULT(NewReader)
   !*## Purpose
   !
   ! Initialise a new dataset reader using the provided file template and attach
@@ -70,6 +68,7 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   CHARACTER(LEN=*), INTENT(IN) :: FileTemplate
   CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
   REAL, INTENT(IN) :: StepSize
+  TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   TYPE(DatasetReader) :: NewReader
 
@@ -95,6 +94,9 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
     ! Attach the timestep and variables
     NewReader%VarNames = VarNames
     NewReader%TimestepSize = INT(StepSize)
+
+    ! Add the mpi info
+    NewReader%mpi_grp = mpi_grp
 
     ! To avoid any first call annoyances, we will set the first file in the
     ! dataset as the 'active' file and retrieve the desired variable ID.
@@ -394,7 +396,7 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   !
   !## Method
   !
-  ! Use NetCDF routines to acquire a new ID associated with the file at the
+  ! Use NetCDF routines to acquire a new ID associated with the fi994a3c7le at the
   ! given index.
 
   INTEGER, INTENT(IN) :: FileIndex
@@ -405,7 +407,8 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   INTEGER :: ok
 
   ok = NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
-    Reader%CurrentFileID. Reader%mpi_grp%comm, MPI_INFO_NULL)
+    Reader%CurrentFileID, Reader%mpi_grp%comm, MPI_INFO_NULL)
+  WRITE(OUTPUT_UNIT,*) "FileID:", Reader%CurrentFileID
   Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)
   Reader%CurrentFileIndex = FileIndex
 

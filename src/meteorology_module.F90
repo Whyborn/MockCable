@@ -1,5 +1,6 @@
 MODULE meteorology_module
 
+USE mpi_module, ONLY: mpi_grp_t
 USE netcdf, ONLY: NF90_OPEN, NF90_NOWRITE, NF90_INQ_DIMID,&
   NF90_INQUIRE_DIMENSION, NF90_INQ_VARID, NF90_GET_VAR
 USE datasetreader_module, ONLY: DatasetReader,&
@@ -36,7 +37,7 @@ TYPE(MetContainer), DIMENSION(NumVariables) :: MetContainers
 
 CONTAINS
 
-SUBROUTINE prepare_meteorology(Timestep, NPoints, Met)
+SUBROUTINE prepare_meteorology(Timestep, NPoints, Met, mpi_grp)
   !*## Purpose
   !
   ! Prepare the meteorology input routines and land mask
@@ -49,6 +50,7 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints, Met)
   REAL, INTENT(IN) :: Timestep
   INTEGER, INTENT(OUT) :: NPoints
   TYPE(MetType), INTENT(OUT) :: Met
+  TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   CHARACTER(LEN=300) :: RainFile, TemperatureFile, WindFile, PressureFile,&
     ShortwaveRadFile, LongwaveRadFile, LandmaskFile
@@ -79,17 +81,17 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints, Met)
 
   ! Initialise the dataset readers
   MetDataReaders(RainID) = initialise_datasetreader_at_timestep(&
-    RainFile, ['Rainf'], Timestep)
+    RainFile, ['Rainf'], Timestep, mpi_grp)
   MetDataReaders(TemperatureID) = initialise_datasetreader_at_timestep(&
-    TemperatureFile, ['Tair'], Timestep)
+    TemperatureFile, ['Tair'], Timestep, mpi_grp)
   MetDataReaders(WindID) = initialise_datasetreader_at_timestep(&
-    WindFile, ['wind'], Timestep)
+    WindFile, ['wind'], Timestep, mpi_grp)
   MetDataReaders(PressureID) = initialise_datasetreader_at_timestep(&
-    PressureFile, ['Psurf'], Timestep)
+    PressureFile, ['Psurf'], Timestep, mpi_grp)
   MetDataReaders(ShortwaveRadID) = initialise_datasetreader_at_timestep(&
-    ShortwaveRadFile, ['SWdown'], Timestep)
+    ShortwaveRadFile, ['SWdown'], Timestep, mpi_grp)
   MetDataReaders(LongwaveRadID) = initialise_datasetreader_at_timestep(&
-    LongwaveRadFile, ['LWdown'], Timestep)
+    LongwaveRadFile, ['LWdown'], Timestep, mpi_grp)
 
 END SUBROUTINE prepare_meteorology
 
