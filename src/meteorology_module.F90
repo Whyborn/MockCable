@@ -37,7 +37,7 @@ TYPE(MetContainer), DIMENSION(NumVariables) :: MetContainers
 
 CONTAINS
 
-SUBROUTINE prepare_meteorology(Timestep, NPoints, Met, mpi_grp)
+SUBROUTINE prepare_meteorology(Timestep, Met, mpi_grp)
   !*## Purpose
   !
   ! Prepare the meteorology input routines and land mask
@@ -48,14 +48,18 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints, Met, mpi_grp)
   ! files.
 
   REAL, INTENT(IN) :: Timestep
-  INTEGER, INTENT(OUT) :: NPoints
   TYPE(MetType), INTENT(OUT) :: Met
   TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   CHARACTER(LEN=300) :: RainFile, TemperatureFile, WindFile, PressureFile,&
     ShortwaveRadFile, LongwaveRadFile, LandmaskFile
 
-  INTEGER :: nmlUnit
+  ! Things required for the mask creation+parallelism
+  INTEGER, DIMENSION(2) :: ProcessStart
+  INTEGER, DIMENSION(:,:), ALLOCATABLE, TARGET :: ProcessMask
+  INTEGER :: NPoints
+
+  INTEGER :: nmlUnit, VarIter
 
   NAMELIST /metnml/ RainFile, TemperatureFile, WindFile, PressureFile,&
   ShortwaveRadFile, LongwaveRadFile, LandmaskFile
@@ -73,9 +77,14 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints, Met, mpi_grp)
   READ(nmlUnit, NML=metnml)
   CLOSE(nmlUnit)
 
-  NPoints = prepare_landmask(LandmaskFile)
+  ! Prepare the landmask- it needs to give us information about the mask and
+  ! the starting index in each process. 
+  CALL prepare_landmask(LandmaskFile, ProcessMask, ProcessStart)
 
-  ! Allocate memory
+  ! Set the number of points in the given mask
+  NPoints = SUM(ProcessMask)
+
+  ! Allocate memory for the readers
   ALLOCATE(Met%Rain(NPoints), Met%Temperature(NPoints), Met%Wind(NPoints),&
     Met%Pressure(NPoints), Met%ShortwaveRad(NPoints), Met%LongwaveRad(NPoints))
 
@@ -93,9 +102,15 @@ SUBROUTINE prepare_meteorology(Timestep, NPoints, Met, mpi_grp)
   MetDataReaders(LongwaveRadID) = initialise_datasetreader_at_timestep(&
     LongwaveRadFile, ['LWdown'], Timestep, mpi_grp)
 
+  ! Assign the mask and indices to each reader
+  AssignDomains: DO VarIter = 1, NumVariables
+    MetDataReaders(VarIter)%Starts = ProcessStart
+    MetDataReaders(VarIter)%Mask => ProcessMask
+  END DO AssignDomains
+  
 END SUBROUTINE prepare_meteorology
 
-FUNCTION prepare_landmask(LandmaskFile) RESULT(NPoints)
+SUBROUTINE prepare_landmask(LandmaskFile, ProcessMask, ProcessStart)
   !*## Purpose
   !
   ! Read the specified landmask file to generate the matrix to vector mappings
@@ -107,42 +122,35 @@ FUNCTION prepare_landmask(LandmaskFile) RESULT(NPoints)
   ! iterate through the dimensions of the landmask and add coordinates where
   ! the mask is equal to 1 to the list of LonIDs and LatIDs.
 
-  CHARACTER(LEN=300) :: LandmaskFile
-  INTEGER :: NPoints
+  CHARACTER(LEN=300), INTENT(IN) :: LandmaskFile
+  INTEGER, DIMENSION(:,:), ALLOCATABLE, TARGET, INTENT(OUT) :: ProcessMask
+  INTEGER, DIMENSION(2) :: ProcessStart
 
-  ! Iterators
-  INTEGER :: Lat, Lon, Counter, VarIter
+  ! Iterators and counters
+  INTEGER :: Lat, Lon, Counter, VarIter, NPoints
 
   ! IDs for netCDF io
   INTEGER :: ncID, LatID, LonID, MaskID, nLat, nLon, ok
 
-  ! The mask
+  ! The original mask from file
   INTEGER, DIMENSION(:,:), ALLOCATABLE :: Landmask
 
-  ok = NF90_OPEN(TRIM(LandmaskFile), NF90_NOWRITE, ncID)
-  CALL handle_ncstat(ok)
-  ok = NF90_INQ_DIMID(ncID, 'longitude', LonID)
-  CALL handle_ncstat(ok)
-  ok = NF90_INQUIRE_DIMENSION(ncID, LonID, LEN=nLon)
-  CALL handle_ncstat(ok)
+  CALL handle_ncstat(NF90_OPEN(TRIM(LandmaskFile), NF90_NOWRITE, ncID))
+  CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'longitude', LonID))
+  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, LonID, LEN=nLon))
 
-  ok = NF90_INQ_DIMID(ncID, 'latitude', LatID)
-  CALL handle_ncstat(ok)
-  ok = NF90_INQUIRE_DIMENSION(ncID, LatID, LEN=nLat)
-  CALL handle_ncstat(ok)
+  CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'latitude', LatID))
+  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, LatID, LEN=nLat))
 
   ! Allocate memory for the mask and met variables
-  WRITE(*,*) "nLon:", nLon, "nLat:", nLat
   ALLOCATE(Landmask(nLon, nLat))
   DO VarIter = 1, NumVariables
     ALLOCATE(MetContainers(VarIter)%VarData(nLon, nLat))
   END DO
 
   ! Read the mask
-  ok = NF90_INQ_VARID(ncID, 'mask', MaskID)
-  CALL handle_ncstat(ok)
-  ok = NF90_GET_VAR(ncID, MaskID, Landmask, START=[1, 1])
-  CALL handle_ncstat(ok)
+  CALL handle_ncstat(NF90_INQ_VARID(ncID, 'mask', MaskID))
+  CALL handle_ncstat(NF90_GET_VAR(ncID, MaskID, Landmask, START=[1, 1]))
 
   ! Check how many land points there are
   NPoints = SUM(Landmask)
@@ -162,7 +170,11 @@ FUNCTION prepare_landmask(LandmaskFile) RESULT(NPoints)
     END DO
   END DO
 
-END FUNCTION prepare_landmask
+  ! For now, just hardcode the start indices to [1, 1]
+  ProcessStart = [1, 1]
+  ProcessMask = Landmask
+
+END SUBROUTINE prepare_landmask
 
 SUBROUTINE get_meteorology(Year, Timestep, Met)
   !*## Purpose

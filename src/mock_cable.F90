@@ -1,7 +1,7 @@
 PROGRAM mock_cable
 
   USE iso_fortran_env
-  USE mpi_module, ONLY: mpi_grp_t, mpi_mod_init
+  USE mpi_module, ONLY: mpi_grp_t, mpi_mod_init, mpi_mod_end
   USE time_module, ONLY: SecsInDay, set_calendar, days_in_year
   USE meteorology_module, ONLY: prepare_meteorology, get_meteorology, MetType
 
@@ -25,7 +25,7 @@ PROGRAM mock_cable
 
   CALL set_calendar(Calendar)
 
-  CALL prepare_meteorology(Dt, NPoints, Met, mpi_grp)
+  CALL prepare_meteorology(Dt, Met, mpi_grp)
 
   DO Year = StartYear, EndYear
     ! Compute number of steps in the year
@@ -34,4 +34,7 @@ PROGRAM mock_cable
       CALL get_meteorology(Year, TimeStep, Met)
     END DO
   END DO
+
+  CALL mpi_mod_end()
+  
 END PROGRAM mock_cable

@@ -46,6 +46,13 @@ TYPE DatasetReader
 
   ! MPI information
   TYPE(mpi_grp_t) :: mpi_grp
+
+  ! Tell the reader which slices of the data to retrieve
+  INTEGER, DIMENSION(2) :: Starts
+
+  ! We want to keep a reference to the created land mask. We want this to be a
+  ! pointer to a single mask
+  INTEGER, DIMENSION(:,:), POINTER :: Mask
 END TYPE DatasetReader
 
 CONTAINS
@@ -131,7 +138,7 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   ! clash with other mpi processes- maybe in future we can use it's MPI rank?
   ! Note: may need alternatives for users not using bash
   CALL execute_command_line('find '//TRIM(FileTemplate)//&
-    ' -type f,l > __tempfile__.txt')
+    ' -type f > __tempfile__.txt')
 
   OPEN(NEWUNIT=FileUnit, FILE='__tempfile__.txt', IOSTAT=ios)
 
@@ -202,11 +209,11 @@ FUNCTION sort_by_start_date(ListOfFiles) RESULT(SortedFiles)
   ! Retrieve the time indices for each file
   GetStartTimes: DO FileCounter = 1, SIZE(SortedFiles)
     ! Open and inspect the netCDF file
-    ok = NF90_OPEN(ListOfFiles(FileCounter), NF90_NOWRITE, ncID)
+    CALL handle_ncstat(NF90_OPEN(ListOfFiles(FileCounter), NF90_NOWRITE, ncID))
 
-    ok = NF90_INQ_VARID(ncID, 'time', tID)
-    ok = NF90_GET_VAR(ncID, tID, TimeValues(FileCounter:FileCounter),&
-      COUNT = [1])
+    CALL handle_ncstat(NF90_INQ_VARID(ncID, 'time', tID))
+    CALL handle_ncstat(NF90_GET_VAR(ncID, tID,&
+      TimeValues(FileCounter:FileCounter), COUNT = [1]))
   END DO GetStartTimes
 
   ! Sort the start times, and use the indexer to then sort the files
@@ -237,13 +244,13 @@ SUBROUTINE identify_start_year(Reader)
   ! String to hold the units attribute
   CHARACTER(LEN=33) :: TimeUnits
 
-  ok = NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE, ncID)
+  CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE,&
+    ncID))
   
   tID = get_varid(ncID, ['time'])
-  ok = NF90_GET_VAR(ncID, tID, StartTime)
+  CALL handle_ncstat(NF90_GET_VAR(ncID, tID, StartTime))
   
-  ok = NF90_GET_ATT(ncID, tID, 'units', TimeUnits)
-  CALL handle_ncstat(ok, 'Failed to read the time attribute from the file.')
+  CALL handle_ncstat(NF90_GET_ATT(ncID, tID, 'units', TimeUnits))
 
   ! Check that the units are valid
   IF (TimeUnits(1:13) /= 'seconds since') THEN
@@ -296,9 +303,10 @@ FUNCTION assign_file_indices(DatasetFiles) RESULT(IndexRange)
   IndexRange(1) = TimeIndex
 
   CountFiles: DO FileCounter = 1, (SIZE(DatasetFiles)-1)
-    ok = NF90_OPEN(DatasetFiles(FileCounter), NF90_NOWRITE, ncID)
-    ok = NF90_INQ_DIMID(ncID, 'time', tID)
-    ok = NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength)
+    CALL handle_ncstat(NF90_OPEN(DatasetFiles(FileCounter), NF90_NOWRITE,&
+    ncID))
+    CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'time', tID))
+    CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength))
 
     TimeIndex = TimeIndex + DimLength
 
@@ -330,22 +338,23 @@ SUBROUTINE verify_validity(Reader)
   REAL :: EndTime, NextStartTime, Interval
 
   ! Get the first end time manually, since we have nothing to check against
-  ok = NF90_OPEN(Reader%DatasetFiles(1), NF90_NOWRITE, ncID)
-  ok = NF90_INQ_DIMID(ncID, 'time', tID)
-  ok = NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength)
+  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(1), NF90_NOWRITE, ncID))
+  CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'time', tID))
+  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength))
 
   tID = get_varid(ncID, ['time'])
-  ok = NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength])
+  CALL handle_ncstat(NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength]))
 
   ! Now we can iterate through the remainder of the files
   DO FileIter = 2, SIZE(Reader%DatasetFiles)
-    ok = NF90_OPEN(Reader%DatasetFiles(FileIter), NF90_NOWRITE, ncID)
-    ok = NF90_INQ_DIMID(ncID, 'time', tID)
-    ok = NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength)
+    CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIter), NF90_NOWRITE,&
+      ncID))
+    CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'time', tID))
+    CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength))
 
     tID = get_varid(ncID, ['time'])
     ! Get the first time from the new file
-    ok = NF90_GET_VAR(ncID, tID, NextStartTime, START=[1])
+    CALL handle_ncstat(NF90_GET_VAR(ncID, tID, NextStartTime, START=[1]))
 
     ! Only check the interval on the second iteration, as we have no interval
     ! to compare against on the first
@@ -360,7 +369,7 @@ SUBROUTINE verify_validity(Reader)
     END IF
 
     ! Set the new end time
-    ok = NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength])
+    CALL handle_ncstat(NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength]))
   END DO
 
 END SUBROUTINE verify_validity
@@ -406,9 +415,14 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   ! Status checker
   INTEGER :: ok
 
-  ok = NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
-    Reader%CurrentFileID, Reader%mpi_grp%comm, MPI_INFO_NULL)
-  WRITE(OUTPUT_UNIT,*) "FileID:", Reader%CurrentFileID
+#ifdef __MPI__
+  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
+    Reader%CurrentFileID, COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
+#else
+  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
+    Reader%CurrentFileID))
+#endif
+
   Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)
   Reader%CurrentFileIndex = FileIndex
 
@@ -433,14 +447,12 @@ SUBROUTINE get_spatial_dimensions(Reader, xDimLength, yDimLength)
 
   ! We already have the ncID from the reader
   xID = get_dimid(Reader%CurrentFileID, LonNames)
-  ok = NF90_INQUIRE_DIMENSION(Reader%CurrentFileID, xID, LEN=xDimLength)
-  CALL handle_ncstat(ok, 'Failed retrieving longitude dimension in get_spatial'&
-    //'dimensions.')
+  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(Reader%CurrentFileID, xID,&
+    LEN=xDimLength))
 
   yID = get_dimid(Reader%CurrentFileID, LatNames)
-  ok = NF90_INQUIRE_DIMENSION(Reader%CurrentFileID, yID, LEN=yDimLength)
-  CALL handle_ncstat(ok, 'Failed retrieving latitude dimension in get_spatial'&
-    //'dimensions.')
+  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(Reader%CurrentFileID,&
+    yID, LEN=yDimLength))
 
 END SUBROUTINE get_spatial_dimensions
 
@@ -487,9 +499,9 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
   END IF
 
   ! Actually retrieve the data
-  ok = NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
-    OutData, START=[1, 1, IndexInFile])
-  CALL handle_ncstat(ok, 'Error retrieving NetCDF data from given timestep.')
+  CALL handle_ncstat(NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
+    OutData, START=[Reader%Starts(1), Reader%Starts(2), IndexInFile]),&
+    "Failed on line 502 of datasetreader_module.F90")
 
 END SUBROUTINE get_data
 
