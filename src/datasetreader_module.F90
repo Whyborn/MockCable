@@ -6,6 +6,7 @@ USE mpi_module, ONLY: mpi_grp_t
 USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
                   NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
                   NF90_NOWRITE
+USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, add_to_date, days_since,&
                        intervals_since
@@ -50,15 +51,14 @@ TYPE DatasetReader
   ! Tell the reader which slices of the data to retrieve
   INTEGER, DIMENSION(2) :: Starts
 
-  ! We want to keep a reference to the created land mask. We want this to be a
-  ! pointer to a single mask
-  INTEGER, DIMENSION(:,:), POINTER :: Mask
+  ! Array to store the retrieved data
+  REAL, DIMENSION(:,:), ALLOCATABLE :: DataStorage
 END TYPE DatasetReader
 
 CONTAINS
 
 FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
-    StepSize, mpi_grp) RESULT(NewReader)
+    StepSize, ProcDomain, mpi_grp) RESULT(NewReader)
   !*## Purpose
   !
   ! Initialise a new dataset reader using the provided file template and attach
@@ -75,11 +75,12 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   CHARACTER(LEN=*), INTENT(IN) :: FileTemplate
   CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
   REAL, INTENT(IN) :: StepSize
+  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
   TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   TYPE(DatasetReader) :: NewReader
 
-  ! Array to hold all the file names matching the template
+  ! Array to hold all the file names contained in the specified file
   CHARACTER(LEN=250), DIMENSION(:), ALLOCATABLE :: ListOfFiles
 
   ! Only initialise if the FileTemplate is not an empty string
@@ -102,8 +103,11 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
     NewReader%VarNames = VarNames
     NewReader%TimestepSize = INT(StepSize)
 
-    ! Add the mpi info
+    ! Prepare the process information
     NewReader%mpi_grp = mpi_grp
+    NewReader%Starts = ProcDomain%ProcessDomainStart
+    ALLOCATE(NewReader%DataStorage(ProcDomain%ProcessDomainSize(1),&
+      ProcDomain%ProcessDomainSize(2)))
 
     ! To avoid any first call annoyances, we will set the first file in the
     ! dataset as the 'active' file and retrieve the desired variable ID.
@@ -112,7 +116,7 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
 
 END FUNCTION initialise_datasetreader_at_timestep
 
-FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
+FUNCTION glob_files(InputFileList) RESULT(ListOfFiles)
   !*## Purpose
   !
   ! Returns an array of all files matching the given template, similar to 
@@ -124,7 +128,7 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   ! bash terminals and pipes the result to a temporary file. Reads the temporary
   ! file back in to construct an array of file names.
 
-  CHARACTER(LEN=*), INTENT(IN) :: FileTemplate
+  CHARACTER(LEN=*), INTENT(IN) :: InputFileList
 
   CHARACTER(LEN=250), DIMENSION(:), ALLOCATABLE :: ListOfFiles
 
@@ -133,14 +137,8 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   CHARACTER(LEN=250), DIMENSION(1000) :: TempListOfFiles
   INTEGER :: LineCounter, ios, FileUnit
 
-  ! Invoke the find command with the template, and write to unique temp file
-  ! created using a random integer so it's retrievable later and unlikely to
-  ! clash with other mpi processes- maybe in future we can use it's MPI rank?
-  ! Note: may need alternatives for users not using bash
-  CALL execute_command_line('find '//TRIM(FileTemplate)//&
-    ' -type f > __tempfile__.txt')
-
-  OPEN(NEWUNIT=FileUnit, FILE='__tempfile__.txt', IOSTAT=ios)
+  ! The user has given a text file containing the list of files to include
+  OPEN(NEWUNIT=FileUnit, FILE=InputFileList, IOSTAT=ios)
 
   ! We just use 1000 as a 'sufficiently larger number' here- it's the upper
   ! limit to the number of files we could possibly have in a dataset reader
@@ -173,9 +171,6 @@ FUNCTION glob_files(FileTemplate) RESULT(ListOfFiles)
   ! from the temporary array to the returned array
   ALLOCATE(ListOfFiles(LineCounter))
   ListOfFiles(:) = TempListOfFiles(1:LineCounter)
-
-  ! Remove the temporary file
-  CALL execute_command_line('rm __tempfile__.txt')
 
 END FUNCTION glob_files
   
@@ -456,7 +451,7 @@ SUBROUTINE get_spatial_dimensions(Reader, xDimLength, yDimLength)
 
 END SUBROUTINE get_spatial_dimensions
 
-SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
+SUBROUTINE get_data(Reader, Year, TimeIndex)
   !*## Purpose
   !
   ! Retrieve the data for a specified year and time step within that year.
@@ -470,7 +465,6 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
   INTEGER, INTENT(IN) :: Year, TimeIndex
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
-  REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(INOUT) :: OutData
 
   ! Iterator, status checker and index in relevant file
   INTEGER :: FileIndex = 0, ok, IndexInDataset, IndexInFile
@@ -498,9 +492,10 @@ SUBROUTINE get_data(OutData, Reader, Year, TimeIndex)
     CALL open_new_file_in_reader(Reader, FileIndex)
   END IF
 
-  ! Actually retrieve the data
+  ! Actually retrieve the data and store it in the attached data storage
   CALL handle_ncstat(NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
-    OutData, START=[Reader%Starts(1), Reader%Starts(2), IndexInFile]),&
+    Reader%DataStorage,&
+    START=[Reader%Starts(1), Reader%Starts(2), IndexInFile]),&
     "Failed on line 502 of datasetreader_module.F90")
 
 END SUBROUTINE get_data

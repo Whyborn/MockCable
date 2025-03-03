@@ -168,7 +168,7 @@ FUNCTION approx_equal(LHS, RHS, Tolerance) RESULT(IsEqual)
   LOGICAL :: IsEqual
 
   ! Set a default value for the tolerance if it is not already set
-  IF (PRESENT(Tolerance)) THEN
+  IF (.NOT. PRESENT(Tolerance)) THEN
     Tolerance = 1e-8
   END IF
 

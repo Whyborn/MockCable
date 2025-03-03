@@ -152,4 +152,4 @@ CONTAINS
 
   END SUBROUTINE mpi_check_error
 
-END MODULE cable_mpi_mod
+END MODULE mpi_module
