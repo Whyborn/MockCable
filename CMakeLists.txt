@@ -21,7 +21,12 @@ add_library(
     src/datasetreader_module.F90
     src/meteorology_module.F90
     src/time_module.F90
+    src/mpi_module.F90
 )
+
+if(MOCK_CABLE_MPI)
+    target_compile_definitions(common PRIVATE __MPI__)
+endif()
 
 add_executable(
     mock-cable

@@ -1,6 +1,3 @@
-! Author: Lachlan Whyborn
-! Last Modified: Thu 30 Jan 2025 11:18:26 AM AEDT
-
 MODULE time_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT

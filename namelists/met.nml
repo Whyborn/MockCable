@@ -1,8 +1,8 @@
 &metnml
-    LandmaskFile = "/home/lachlan/Scratch/mock_cable_inputs/ACCESS-ESM1p5-1p875x1p25-landmask-global.nc"
-    RainFile = "/home/lachlan/Scratch/mock_cable_inputs/ACCESS-ESM1p5-to-CABLE_Rainf_196*"
-    TemperatureFile = "/home/lachlan/Scratch/mock_cable_inputs/ACCESS-ESM1p5-to-CABLE_Tair_196*"
-    WindFile = "/home/lachlan/Scratch/mock_cable_inputs/ACCESS-ESM1p5-to-CABLE_wind_196*"
-    ShortwaveRadFile = "/home/lachlan/Scratch/mock_cable_inputs/ACCESS-ESM1p5-to-CABLE_SWdown_196*"
-    PressureFile = "/home/lachlan/Scratch/mock_cable_inputs/ACCESS-ESM1p5-to-CABLE_Psurf_196*"
+    RainFile = "RainFiles"
+    TemperatureFile = "TairFiles"
+    WindFile = "WindFiles"
+    ShortwaveRadFile = "SWDownFiles"
+    LongwaveRadFile = "LWDownFiles"
+    PressureFile = "PsurfFiles"
 /

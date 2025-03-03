@@ -1,6 +1,3 @@
-! Author: Lachlan Whyborn
-! Last Modified: Thu 30 Jan 2025 11:12:59 AM AEDT
-
 MODULE common_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
@@ -122,7 +119,7 @@ FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
 
   INTEGER, DIMENSION(:) :: Values
   INTEGER :: UpperLimit
-  INTEGER IndexOfLargest
+  INTEGER :: IndexOfLargest
 
   INTEGER :: Lowerbound, UpperBound, Middle
 
@@ -171,7 +168,7 @@ FUNCTION approx_equal(LHS, RHS, Tolerance) RESULT(IsEqual)
   LOGICAL :: IsEqual
 
   ! Set a default value for the tolerance if it is not already set
-  IF (PRESENT(Tolerance)) THEN
+  IF (.NOT. PRESENT(Tolerance)) THEN
     Tolerance = 1e-8
   END IF
 
