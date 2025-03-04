@@ -22,6 +22,7 @@ add_library(
     src/meteorology_module.F90
     src/time_module.F90
     src/mpi_module.F90
+    src/domain_module.F90
 )
 
 if(MOCK_CABLE_MPI)

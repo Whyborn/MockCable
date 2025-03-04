@@ -79,11 +79,7 @@ SUBROUTINE process_landmask(LandmaskFile, ProcDomain, GlobDomain, mpi_grp)
   ! Convert from integers to logicals
   DO Lat = 1, nLat
     DO Lon = 1, nLon
-      IF (Landmask(Lon, Lat) == 1) THEN
-        LogicalLandmask = .TRUE.
-      ELSE
-        LogicalLandmask = .FALSE.
-      END IF
+      LogicalLandmask(Lon, Lat) = Landmask(Lon, Lat) == 1
     END DO
   END DO
 
@@ -156,9 +152,9 @@ SUBROUTINE prepare_process_domain(Landmask, ProcDomain, mpi_grp)
   ! Start by taking the relevant slice of the landmask
   LocalMask = Landmask(&
     ProcDomain%ProcessDomainStart(1):ProcDomain%ProcessDomainStart(1) +&
-    ProcDomain%ProcessDomainSize(1),&
+    ProcDomain%ProcessDomainSize(1) - 1,&
     ProcDomain%ProcessDomainStart(2):ProcDomain%ProcessDomainStart(2) +&
-    ProcDomain%ProcessDomainSize(2))
+    ProcDomain%ProcessDomainSize(2) - 1)
 
   ! How many land points are there in the process's mask?
   NPoints = COUNT(LocalMask)
