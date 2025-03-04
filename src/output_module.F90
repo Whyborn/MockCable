@@ -18,10 +18,21 @@ MODULE output_module
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimLengths
 
     ! Variables
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: VarNames
-    INTEGER, DIMENSION(:), ALLOCATABLE :: VarIDs
+    TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: Variables
 
   END TYPE NCFile
+
+  TYPE NCVariable
+    !*## Purpose
+    !
+    ! A derived type used to assist in output routines
+    INTEGER VarID
+    CHARACTER(LEN=20) :: VarName
+
+    ! Dimension names and IDs
+    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
+    INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
+  END TYPE NCVariable
 
   INTERFACE initialise_output_file
     PROCEDURE initialise_output_file_by_name
@@ -33,7 +44,14 @@ MODULE output_module
     PROCEDURE add_variables_single_dim
     PROCEDURE add_variable_multiple_dims
     PROCEDURE add_variable_single_dim
-  END INTERFACE
+  END INTERFACE add_variables
+
+  INTERFACE set_variable_data
+    PROCEDURE set_variable_data_real_rank2
+    PROCEDURE set_variable_data_real_rank3
+    PROCEDURE set_variable_data_int_rank2
+    PROCEDURE set_variable_data_int_rank3
+  END INTERFACE set_variable_data
 
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: _ProcDomain
@@ -154,9 +172,8 @@ CONTAINS
     ! iterators
     INTEGER :: DimIter, FileDimIter, VarIter
 
-    ! Possibly required temporary variable name/ID holders
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: TempVarNames
-    INTEGER, DIMENSION(:), ALLOCATABLE :: TempVarIDs
+    ! Possibly required temporary variables, if a resize is needed
+    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: TempVariables
 
     ! We need to set the start point for this set of variables
     INTEGER :: StartPoint
@@ -166,29 +183,26 @@ CONTAINS
 
     ! We will want to redefine the length of the file's variables, if it's
     ! already allocated
-    IF (ALLOCATED(OutFile%VarNames)) THEN
+    IF (ALLOCATED(OutFile%Variables)) THEN
       ! We've been through the process before, so we need to redefine the array
       ! of variable names and IDs, rather than just allocate
-      TempVarNames(:) = OutFile%VarNames
-      TempVarIDs(:) = OutFile%VarIDs
+      TempVariables = OutFile%Variables
 
       ! Set the starting point for this set of variables
-      StartPoint = SIZE(OutFile%VarNames)
+      StartPoint = SIZE(OutFile%Variables)
 
       ! Now reallocate the file's variables, with their new size
-      DEALLOCATE(OutFile%VarNames, OutFile%VarIDs)
-      ALLOCATE(OutFile%VarNames(StartPoint + SIZE(VarNames)))
-      ALLOCATE(OutFile%VarIDs(StartPoint + SIZE(VarNames)))
+      DEALLOCATE(OutFile%Variables)
+      ALLOCATE(OutFile%Variables(StartPoint + SIZE(VarNames)))
 
-      ! Reset the first set of variable names and IDs
-      OutFile%VarNames(1:StartPoint) = TempVarNames
-      OutFile%VarIDs(1:StartPoint) = TempVarIDs
+      ! Reset the already-defined set of variable names and IDs
+      OutFile%Variables(1:StartPoint) = TempVariables
+
     ELSE
       ! No variables have been defined for this file yet- just allocate
-      ALLOCATE(OutFile%VarNames(SIZE(VarNames)))
-      ALLOCATE(OutFile%VarIDs(SIZE(VarNames)))
+      ALLOCATE(OutFile%Variables(SIZE(VarNames)))
 
-      StartPoint = 1
+      StartPoint = 0
     END IF
 
     ! First determine the dimensions IDs
@@ -205,10 +219,154 @@ CONTAINS
     ! Now we know the dimension IDs of each of the desired dimensions
     DO VarIter = 1, SIZE(VarNames)
       CALL handle_ncstat(OutFile%FileID, VarNames(VarIter), DataType,&
-        VarDimIDs, OutFile%VarIDs(StartPoint + VarIter))
-      OutFile%VarNames(StartPoint + VarIter) = VarNames(VarIter)
+        VarDimIDs, OutFile%Variables(StartPoint + VarIter)%VarID)
+
+      ! Set up the NCVariable
+      OutFile%Variables(StartPoint + VarIter)%VarName = VarNames(VarIter)
+      OutFile%Variables(StartPoint + VarIter)%DimNames = VarDims
+      OutFile%Variables(StartPoint + VarIter)%DimIDs = VarDimIDs
     END DO
 
   END SUBROUTINE add_variables_multiple_dim
 
+  SUBROUTINE add_variables_single_dim(OutFile, VarNames, VarDim, DataType)
+    !*## Purpose
+    !
+    ! Add single dimensioned variables to the NCFile.
+    !
+    !## Method
+    !
+    ! Invoke the full-featured add_variables_multiple_dims function
+    
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarNames
+    CHARACTER(LEN=20), INTENT(IN) :: VarDim
+    INTEGER, INTENT(IN) :: DataType
 
+    CALL add_variables_multiple_dims(OutFile, VarNames, [VarDim], DataType)
+
+  END SUBROUTINE add_variables_single_dim
+
+  SUBROUTINE add_variable_multiple_dims(OutFile, VarName, VarDims, DataType)
+    !*## Purpose
+    !
+    ! Add a single variable to the NCFile.
+    !
+    !## Method
+    !
+    ! Invoke the full-featured add_variables_multiple_dims function
+    
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarDims
+    INTEGER, INTENT(IN) :: DataType
+
+    CALL add_variables_multiple_dims(OutFile, [VarName], VarDims, DataType)
+
+  END SUBROUTINE add_variable_multiple_dims
+
+  SUBROUTINE add_variable_single_dim(OutFile, VarName, VarDim, DataType)
+    !*## Purpose
+    !
+    ! Add a single dimensioned variable to the NCFile.
+    !
+    !## Method
+    !
+    ! Invoke the full-featured add_variables_multiple_dims function
+
+    CALL add_variables_multiple_dims(OutFile, [VarName], [VarDim], DataType)
+
+  END SUBROUTINE add_variable_single_dim
+
+  SUBROUTINE set_variable_data_real_rank2(OutFile, VarName, SourceData)
+    !*## Purpose
+    !
+    ! Assign data to a specified variable.
+    !
+    !## Method
+    !
+    ! Use NetCDF routines to assign data to a variable. This routine assumes
+    ! the entire data store is being assigned- to add a record to a variable
+    ! with an unlimited dimension, use add_record.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
+
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    TargetVariable = get_target_variable(OutFile, VarName)
+
+    ! Is there any world where a rank 2 array would not be describing a spatial
+    ! map? For now, assume not, so we know that the dimensions are lon, lat and
+    ! should be chunked up accordingly.
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%VarID, TargetVariable%VarID,&
+      SourceData, START=ProcDomain%ProcessDomainStart))
+
+  END SUBROUTINE set_variable_data_real_rank2
+
+  SUBROUTINE set_variable_data_real_rank3(OutFile, VarName, SourceData)
+    !*## Purpose
+    !
+    ! Assign data to a specified variable.
+    !
+    !## Method
+    !
+    ! Use NetCDF routines to assign data to a variable. This routine assumes
+    ! the entire data store is being assigned- to add a record to a variable
+    ! with an unlimited dimension, use add_record.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    REAL, DIMENSION(:,:,:), ALLOCATABLE, INTENT(IN) :: SourceData
+    
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    ! To assist in chunking up of the variable data
+    INTEGER, DIMENSION(3) :: DimStarts
+    INTEGER :: DimIter
+
+    TargetVariable = get_target_variable(OutFile, VarName)
+
+    ! We need to check which dimensions are our latitudes/longitudes, so we
+    ! know which dimension to chunk up for writing
+    DimStarts = [1, 1, 1]
+    DO DimIter = 1, 3
+      IF (TRIM(TargetVariable%DimNames(DimIter)) == "lon") THEN
+        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(1)
+      ELSEIF (TRIM(TargetVariable%DimNames(DimIter)) == "lat") THEN
+        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(2)
+      END IF
+    END DO
+
+    ! Now we can write the variable
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      START=DimStarts)
+
+  END SUBROUTINE set_variable_data_real_rank3
+
+  FUNCTION get_target_variable(OutFile, VarName) RESULT(TargetVariable)
+    !*## Purpose
+    !
+    ! Get the target variable from the parent NCFile.
+    !
+    !## Method
+    !
+    ! Search the names of the attached variables until the given variable name
+    ! is found, then return that NCVariable.
+
+    TYPE(NCFile) :: OutFile
+    CHARACTER(LEN=20) :: VarName
+    TYPE(NCVariable) :: TargetVariable
+
+    ! Get the relevant variable
+    DO VarIter = 1, SIZE(OutFile%Variables)
+      IF (OutFile%Variables(VarIter)%VarName == VarName) THEN
+        TargetVariable = OutFile%Variables(VarIter)
+        EXIT
+      END IF
+    END DO
+
+  END FUNCTION get_target_variable
