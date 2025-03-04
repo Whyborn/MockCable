@@ -17,6 +17,10 @@ MODULE output_module
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimLengths
 
+    ! Handling for unlimited dimensions
+    LOGICAL :: HasUnlimitedDimension
+    INTEGER :: UnlimitedDimensionLength = 0
+
     ! Variables
     TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: Variables
 
@@ -52,6 +56,13 @@ MODULE output_module
     PROCEDURE set_variable_data_int_rank2
     PROCEDURE set_variable_data_int_rank3
   END INTERFACE set_variable_data
+
+  INTERFACE add_record
+    PROCEDURE add_record_real_rank2
+    PROCEDURE add_record_real_rank3
+    PROCEDURE add_record_int_rank2
+    PROCEDURE add_record_int_rank3
+  END PROCEDURE add_record
 
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: _ProcDomain
@@ -151,6 +162,9 @@ CONTAINS
     DO DimIter = 1, SIZE(DimNames)
       CALL handle_ncstat(NF90_DEF_DIM(OutFile%FileID, TRIM(DimNames(DimIter)),&
         DimLengths(DimIter), OutFile%DimIDs(DimIter)))
+      IF (DimLengths(DimIter) == NF90_UNLIMITED) THEN
+        OutFile%HasUnlimitedDimension = .TRUE.
+      END IF
     END DO
 
   END SUBROUTINE set_dimensions
@@ -346,6 +360,123 @@ CONTAINS
       START=DimStarts)
 
   END SUBROUTINE set_variable_data_real_rank3
+
+  SUBROUTINE set_variable_data_int_rank2(OutFile, VarName, SourceData)
+    !*## Purpose
+    !
+    ! Assign data to a specified variable.
+    !
+    !## Method
+    !
+    ! Use NetCDF routines to assign data to a variable. This routine assumes
+    ! the entire data store is being assigned- to add a record to a variable
+    ! with an unlimited dimension, use add_record.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    INTEGER, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
+
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    TargetVariable = get_target_variable(OutFile, VarName)
+
+    ! Is there any world where a rank 2 array would not be describing a spatial
+    ! map? For now, assume not, so we know that the dimensions are lon, lat and
+    ! should be chunked up accordingly.
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%VarID, TargetVariable%VarID,&
+      SourceData, START=ProcDomain%ProcessDomainStart))
+
+  END SUBROUTINE set_variable_data_int_rank2
+
+  SUBROUTINE set_variable_data_int_rank3(OutFile, VarName, SourceData)
+    !*## Purpose
+    !
+    ! Assign data to a specified variable.
+    !
+    !## Method
+    !
+    ! Use NetCDF routines to assign data to a variable. This routine assumes
+    ! the entire data store is being assigned- to add a record to a variable
+    ! with an unlimited dimension, use add_record.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    INTEGER, DIMENSION(:,:,:), ALLOCATABLE, INTENT(IN) :: SourceData
+    
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    ! To assist in chunking up of the variable data
+    INTEGER, DIMENSION(3) :: DimStarts
+    INTEGER :: DimIter
+
+    TargetVariable = get_target_variable(OutFile, VarName)
+
+    ! We need to check which dimensions are our latitudes/longitudes, so we
+    ! know which dimension to chunk up for writing
+    DimStarts = [1, 1, 1]
+    DO DimIter = 1, 3
+      IF (TRIM(TargetVariable%DimNames(DimIter)) == "lon") THEN
+        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(1)
+      ELSEIF (TRIM(TargetVariable%DimNames(DimIter)) == "lat") THEN
+        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(2)
+      END IF
+    END DO
+
+    ! Now we can write the variable
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      START=DimStarts)
+
+  END SUBROUTINE set_variable_data_int_rank3
+
+  SUBROUTINE add_record_real_rank2(OutFile, VarName, SourceData, DimValue,&
+      UnlimitedDim)
+    !*## Purpose
+    !
+    ! Add a record to a NetCDF variable that has an umlimited dimension,
+    ! usually time.
+    !
+    !## Method
+    !
+    ! Determine which dimension is the umlimited dimension, then extend that
+    ! dimension variable by appending the DimValue. Write the record to the
+    ! same index as the length of variable corresponding to the unlimited
+    ! dimension.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
+    REAL, INTENT(IN) :: DimValue
+    CHARACTER(LEN=20), OPTIONAL :: UnlimitedDim
+
+    ! Dimension and target variables
+    TYPE(NCVariable) :: DimensionVariable, TargetVariable
+
+    ! Check if UnlimitedDim was provided, if not assume time
+    IF (.NOT. PRESENT(UnlimitedDim)) THEN
+      UnlimitedDim = "time"
+    END IF
+
+    ! Make sure the file has an unlimited dimension
+    IF (.NOT. OutFile%HasUnlimitedDimension) THEN
+      WRITE(ERROR_UNIT,*) "File has no unlimited dimension, cannot add record"
+    END IF
+
+    ! Put the dimension value into the relevant variable (if task is master?)
+    DimensionVariable = get_target_variable(UnlimitedDim)
+
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, DimensionVariable%VarID,&
+      DimValue, START=OutFile%UnlimitedDimensionLength))
+
+    ! Now assign the variable data
+    TargetVariable = get_target_variable(VarName)
+
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      SourceData, START=[ProcDomain%ProcessDomainStart(1),&
+      ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength))
+
+  END SUBROUTINE add_record_real_rank2
 
   FUNCTION get_target_variable(OutFile, VarName) RESULT(TargetVariable)
     !*## Purpose
