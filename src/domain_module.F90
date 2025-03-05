@@ -177,4 +177,56 @@ SUBROUTINE prepare_process_domain(Landmask, ProcDomain, mpi_grp)
 
 END SUBROUTINE prepare_process_domain
 
+SUBROUTINE from_matrix_to_vector(MatrixInput, VectorOutput, ProcDomain)
+  !*## Purpose
+  !
+  ! Map a matrix of input data to a 1D vector using the process domain
+  ! information.
+  !
+  !## Method
+  !
+  ! The process domain contains the per process mapping from the 2D data input
+  ! domain to the 1D vector domain used in CABLE's science routines. Use this
+  ! information to map from to the other.
+
+  REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: MatrixInput
+  REAL, DIMENSION(:), ALLOCATABLE, INTENT(INOUT) :: VectorOutput
+  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
+
+  ! Just need an iterator
+  INTEGER :: Point
+
+  DO Point = 1, SIZE(ProcDomain%LongitudeIDs)
+    VectorOutput(Point) = MatrixInput(ProcDomain%LongitudeIDs(Point),&
+      ProcDomain%LatitudeIDs(Point))
+  END DO
+
+END SUBROUTINE from_matrix_to_vector
+
+SUBROUTINE from_vector_to_matrix(VectorInput, MatrixOutput, ProcDomain)
+  !*## Purpose
+  !
+  ! Map a matrix of input data to a 1D vector using the process domain
+  ! information.
+  !
+  !## Method
+  !
+  ! The process domain contains the per process mapping from the 2D data input
+  ! domain to the 1D vector domain used in CABLE's science routines. Use this
+  ! information to map from to the other.
+
+  REAL, DIMENSION(:), ALLOCATABLE, INTENT(IN) :: VectorInput
+  REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(INOUT) :: MatrixOutput
+  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
+
+  ! Just need an iterator
+  INTEGER :: Point
+
+  DO Point = 1, SIZE(ProcDomain%LongitudeIDs)
+    MatrixOutput(ProcDomain%LongitudeIDs(Point),&
+      ProcDomain%LatitudeIDs(Point)) = VectorInput(Point)
+  END DO
+
+END SUBROUTINE from_vector_to_matrix
+
 END MODULE domain_module

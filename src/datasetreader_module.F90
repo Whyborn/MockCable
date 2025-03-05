@@ -5,7 +5,7 @@ USE mpi
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
                   NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
-                  NF90_NOWRITE
+                  NF90_NOWRITE, NF90_CLOSE
 USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, add_to_date, days_since,&
@@ -407,8 +407,8 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
-  ! Status checker
-  INTEGER :: ok
+  ! Close the old reader
+  CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
 
 #ifdef __MPI__
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
@@ -527,5 +527,16 @@ SUBROUTINE select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
 
   IndexInFile = IndexInDataset - Reader%IndexRange(FileIndex) + 1
 END SUBROUTINE select_file
+
+SUBROUTINE close_reader(Reader)
+  !*## Purpose
+  !
+  ! Close down the reader at end of use
+
+  TYPE(DatasetReader), INTENT(IN) :: Reader
+
+  CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+
+END SUBROUTINE close_reader
 
 END MODULE datasetreader_module

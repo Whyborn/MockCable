@@ -3,11 +3,12 @@ MODULE meteorology_module
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf
 USE datasetreader_module, ONLY: DatasetReader,&
-  initialise_datasetreader_at_timestep, get_data
+  initialise_datasetreader_at_timestep, get_data, close_reader
 USE common_module, ONLY: handle_ncstat
 USE domain_module, ONLY: ProcessDomain, GlobalDomain, from_matrix_to_vector,&
   from_vector_to_matrix
-USE output_module, ONLY: NCFile, initialise_output_file
+USE output_module, ONLY: NCFile, initialise_output_file, def_variables,&
+  put_dimension_data, extend_unlimited_dimension, put_record, close_file
 
 IMPLICIT NONE
 
@@ -23,8 +24,8 @@ INTEGER, PARAMETER :: RainID = 1, TemperatureID = 2, WindID = 3,&
 TYPE(DatasetReader), DIMENSION(NumVariables) :: MetDataReaders
 
 ! Information about the process and global domains
-TYPE(ProcessDomain) :: ProcDomain
-TYPE(GlobalDomain) :: GlobDomain
+TYPE(ProcessDomain), PRIVATE :: ProcDomain
+TYPE(GlobalDomain), PRIVATE :: GlobDomain
 
 ! File to write output to
 TYPE(NCFile) :: MetOutputFile
@@ -165,7 +166,7 @@ SUBROUTINE write_meteorology(Met, Time)
   REAL, DIMENSION(:,:), ALLOCATABLE :: MetStorage
 
   ! Extend the time dimension with the new time
-  CALL extend_unlimited_dimension(MetOutputFile, "time", Time)
+  CALL extend_unlimited_dimension(MetOutputFile, "time", REAL(Time))
   
   ! Use the process domain to allocate the storage
   ALLOCATE(MetStorage(ProcDomain%ProcessDomainSize(1),&
@@ -191,5 +192,21 @@ SUBROUTINE write_meteorology(Met, Time)
   CALL put_record(MetOutputFile, "LWdown", MetStorage)
 
 END SUBROUTINE write_meteorology
+
+SUBROUTINE finalise_meteorology()
+  !*## Purpose
+  !
+  ! Close all the file handles used in the meteorology
+
+  INTEGER :: Iter
+
+  DO Iter = 1, NumVariables
+    CALL close_reader(MetDataReaders(Iter))
+  END DO
+
+  CALL close_file(MetOutputFile)
+
+END SUBROUTINE finalise_meteorology
+
 
 END MODULE meteorology_module

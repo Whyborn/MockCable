@@ -3,6 +3,7 @@ MODULE output_module
   USE mpi
   USE netcdf
   USE iso_fortran_env, ONLY: ERROR_UNIT
+  USE common_module, ONLY: handle_ncstat
   USE mpi_module, ONLY: mpi_grp_t
   USE domain_module, ONLY: ProcessDomain, GlobalDomain
 
@@ -15,7 +16,7 @@ MODULE output_module
     INTEGER :: FileID
 
     ! Dimensions
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
+    CHARACTER(LEN=50), DIMENSION(:), ALLOCATABLE :: DimNames
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimLengths
 
@@ -33,10 +34,10 @@ MODULE output_module
     !
     ! A derived type used to assist in output routines
     INTEGER :: VarID
-    CHARACTER(LEN=20) :: VarName
+    CHARACTER(LEN=50) :: VarName
 
     ! Dimension names and IDs
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
+    CHARACTER(:), DIMENSION(:), ALLOCATABLE :: DimNames
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
   END TYPE NCVariable
 
@@ -107,7 +108,7 @@ CONTAINS
     !
     ! Use NetCDF routines to open a file in parallel if necessary.
 
-    CHARACTER(LEN=200) :: FileName
+    CHARACTER(LEN=*) :: FileName
     TYPE(NCFile) :: OutFile
 
 #ifdef __MPI__
@@ -132,8 +133,8 @@ CONTAINS
     ! Use NetCDF routines to open a file in parallel if necessary, and then
     ! assign dimensions to it.
 
-    CHARACTER(LEN=200) :: FileName
-    CHARACTER(LEN=20), DIMENSION(:) :: DimNames
+    CHARACTER(LEN=*) :: FileName
+    CHARACTER(LEN=*), DIMENSION(:) :: DimNames
     INTEGER, DIMENSION(:) :: DimLengths
     TYPE(NCFile) :: OutFile
 
@@ -155,7 +156,7 @@ CONTAINS
     ! Use NetCDF routines to add dimensions to the NetCDF file and the wrapper.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: DimNames
+    CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: DimNames
     INTEGER, DIMENSION(:), INTENT(IN) :: DimLengths
 
     ! Iterator for the dimensions
@@ -197,8 +198,8 @@ CONTAINS
     ! Use NetCDF routines to add the variable to the NetCDF file.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarNames
-    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarDims
+    CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
+    CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarDims
     INTEGER, INTENT(IN) :: DataType
 
     ! iterators
@@ -276,8 +277,8 @@ CONTAINS
     ! Invoke the full-featured def_variables_multiple_dims function
     
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarNames
-    CHARACTER(LEN=20), INTENT(IN) :: VarDim
+    CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
+    CHARACTER(LEN=*), INTENT(IN) :: VarDim
     INTEGER, INTENT(IN) :: DataType
 
     CALL def_variables_multiple_dims(OutFile, VarNames, [VarDim], DataType)
@@ -294,8 +295,8 @@ CONTAINS
     ! Invoke the full-featured def_variables_multiple_dims function
     
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
-    CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarDims
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarDims
     INTEGER, INTENT(IN) :: DataType
 
     CALL def_variables_multiple_dims(OutFile, [VarName], VarDims, DataType)
@@ -312,8 +313,8 @@ CONTAINS
     ! Invoke the full-featured def_variables_multiple_dims function
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
-    CHARACTER(LEN=20), INTENT(IN) :: VarDim
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), INTENT(IN) :: VarDim
     INTEGER, INTENT(IN) :: DataType
 
     CALL def_variables_multiple_dims(OutFile, [VarName], [VarDim], DataType)
@@ -331,7 +332,7 @@ CONTAINS
     ! data to the variable.
 
     TYPE(NCFile), INTENT(IN) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: DimName
+    CHARACTER(LEN=*), INTENT(IN) :: DimName
     REAL, DIMENSION(:), INTENT(IN) :: SourceData
 
     ! The target variable we're writing to
@@ -372,7 +373,7 @@ CONTAINS
     ! data to the variable.
 
     TYPE(NCFile), INTENT(IN) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: DimName
+    CHARACTER(LEN=*), INTENT(IN) :: DimName
     INTEGER, DIMENSION(:), INTENT(IN) :: SourceData
 
     ! The target variable we're writing to
@@ -413,7 +414,7 @@ CONTAINS
     ! track the new size of the unlimited dimension so we can write to it.
     
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: DimName
+    CHARACTER(LEN=*), INTENT(IN) :: DimName
     REAL, INTENT(IN) :: DimValue
 
     ! Checker to ensure dimension is unlimited
@@ -455,7 +456,7 @@ CONTAINS
     ! with an unlimited dimension, use add_record.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
     REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
 
     ! The target variable we're writing to
@@ -483,7 +484,7 @@ CONTAINS
     ! with an unlimited dimension, use add_record.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
     REAL, DIMENSION(:,:,:), ALLOCATABLE, INTENT(IN) :: SourceData
     
     ! The target variable we're writing to
@@ -524,7 +525,7 @@ CONTAINS
     ! with an unlimited dimension, use add_record.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
     INTEGER, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
 
     ! The target variable we're writing to
@@ -552,7 +553,7 @@ CONTAINS
     ! with an unlimited dimension, use add_record.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
     INTEGER, DIMENSION(:,:,:), ALLOCATABLE, INTENT(IN) :: SourceData
     
     ! The target variable we're writing to
@@ -595,9 +596,9 @@ CONTAINS
     ! dimension.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
     REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
-    CHARACTER(LEN=20), OPTIONAL :: UnlimitedDim
+    CHARACTER(LEN=*), OPTIONAL :: UnlimitedDim
 
     ! Dimension and target variables
     TYPE(NCVariable) :: DimensionVariable, TargetVariable
@@ -632,7 +633,7 @@ CONTAINS
     ! is found, then return that NCVariable.
 
     TYPE(NCFile) :: OutFile
-    CHARACTER(LEN=20) :: VarName
+    CHARACTER(LEN=*) :: VarName
     TYPE(NCVariable) :: TargetVariable
     
     INTEGER :: VarIter
@@ -647,4 +648,14 @@ CONTAINS
 
   END FUNCTION get_target_variable
 
+  SUBROUTINE close_file(OutFile)
+    !*## Purpose
+    !
+    ! Close the file handle attached to the output file
+
+    TYPE(NCFile), INTENT(IN) :: OutFile
+
+    CALL handle_ncstat(NF90_CLOSE(OutFile%FileID))
+
+  END SUBROUTINE close_file
 END MODULE output_module
