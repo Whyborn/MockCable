@@ -1,6 +1,8 @@
 MODULE output_module
 
+  USE mpi
   USE netcdf
+  USE iso_fortran_env, ONLY: ERROR_UNIT
   USE mpi_module, ONLY: mpi_grp_t
   USE domain_module, ONLY: ProcessDomain, GlobalDomain
 
@@ -39,38 +41,47 @@ MODULE output_module
   END TYPE NCVariable
 
   INTERFACE initialise_output_file
-    PROCEDURE initialise_output_file_by_name
-    PROCEDURE initialise_output_file_with_dimensions
+    MODULE PROCEDURE initialise_output_file_by_name
+    MODULE PROCEDURE initialise_output_file_with_dimensions
   END INTERFACE initialise_output_file
 
   INTERFACE add_variables
-    PROCEDURE add_variables_multiple_dims
-    PROCEDURE add_variables_single_dim
-    PROCEDURE add_variable_multiple_dims
-    PROCEDURE add_variable_single_dim
+    MODULE PROCEDURE add_variables_multiple_dims
+    MODULE PROCEDURE add_variables_single_dim
+    MODULE PROCEDURE add_variable_multiple_dims
+    MODULE PROCEDURE add_variable_single_dim
   END INTERFACE add_variables
 
+  INTERFACE set_dimension_data
+    MODULE PROCEDURE set_dimension_data_real
+    MODULE PROCEDURE set_dimension_data_int
+  END INTERFACE set_dimension_data
+
+  INTERFACE extend_unlimited_dimension
+    MODULE PROCEDURE extend_unlimited_dimension_real
+  END INTERFACE extend_unlimited_dimension
+
   INTERFACE set_variable_data
-    PROCEDURE set_variable_data_real_rank2
-    PROCEDURE set_variable_data_real_rank3
-    PROCEDURE set_variable_data_int_rank2
-    PROCEDURE set_variable_data_int_rank3
+    MODULE PROCEDURE set_variable_data_real_rank2
+    MODULE PROCEDURE set_variable_data_real_rank3
+    MODULE PROCEDURE set_variable_data_int_rank2
+    MODULE PROCEDURE set_variable_data_int_rank3
   END INTERFACE set_variable_data
 
   INTERFACE add_record
-    PROCEDURE add_record_real_rank2
-    PROCEDURE add_record_real_rank3
-    PROCEDURE add_record_int_rank2
-    PROCEDURE add_record_int_rank3
-  END PROCEDURE add_record
+    MODULE PROCEDURE add_record_real_rank2
+    !MODULE PROCEDURE add_record_real_rank3
+    !MODULE PROCEDURE add_record_int_rank2
+    !MODULE PROCEDURE add_record_int_rank3
+  END INTERFACE add_record
 
   ! Store information about the MPI configuration
-  TYPE(ProcessDomain), PRIVATE :: _ProcDomain
-  TYPE(mpi_grp_t), PRIVATE :: _mpi_grp
+  TYPE(ProcessDomain), PRIVATE :: ProcDomain
+  TYPE(mpi_grp_t), PRIVATE :: mpi_grp
 
 CONTAINS
 
-  SUBROUTINE initialise_output_module(ProcDomain, mpi_grp)
+  SUBROUTINE initialise_output_module(ProcDomainIn, mpi_grp_in)
     !*## Purpose
     !
     ! Set up the output module for future writing
@@ -79,11 +90,11 @@ CONTAINS
     !
     ! Bind local copies of the mpi configuration and local domain.
 
-    TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
-    TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
+    TYPE(ProcessDomain), INTENT(IN) :: ProcDomainIn
+    TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp_in
 
-    _ProcDomain = ProcDomain
-    _mpi_grp = mpi_grp
+    ProcDomain = ProcDomainIn
+    mpi_grp = mpi_grp_in
 
   END SUBROUTINE initialise_output_module
 
@@ -101,7 +112,7 @@ CONTAINS
 
 #ifdef __MPI__
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID,&
-        mpi_grp%comm, MPI_INFO_NULL))
+        COMM=mpi_grp%comm, INFO=MPI_INFO_NULL))
 #else
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif
@@ -169,7 +180,7 @@ CONTAINS
 
   END SUBROUTINE set_dimensions
 
-  SUBROUTINE add_variables_multiple_dim(OutFile, VarNames, VarDims, DataType)
+  SUBROUTINE add_variables_multiple_dims(OutFile, VarNames, VarDims, DataType)
     !*## Purpose
     !
     ! Add a variable to the NetCDF file.
@@ -187,7 +198,7 @@ CONTAINS
     INTEGER :: DimIter, FileDimIter, VarIter
 
     ! Possibly required temporary variables, if a resize is needed
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: TempVariables
+    TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: TempVariables
 
     ! We need to set the start point for this set of variables
     INTEGER :: StartPoint
@@ -200,7 +211,7 @@ CONTAINS
     IF (ALLOCATED(OutFile%Variables)) THEN
       ! We've been through the process before, so we need to redefine the array
       ! of variable names and IDs, rather than just allocate
-      TempVariables = OutFile%Variables
+      TempVariables(:) = OutFile%Variables
 
       ! Set the starting point for this set of variables
       StartPoint = SIZE(OutFile%Variables)
@@ -241,7 +252,7 @@ CONTAINS
       OutFile%Variables(StartPoint + VarIter)%DimIDs = VarDimIDs
     END DO
 
-  END SUBROUTINE add_variables_multiple_dim
+  END SUBROUTINE add_variables_multiple_dims
 
   SUBROUTINE add_variables_single_dim(OutFile, VarNames, VarDim, DataType)
     !*## Purpose
@@ -288,10 +299,138 @@ CONTAINS
     !
     ! Invoke the full-featured add_variables_multiple_dims function
 
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: VarName
+    CHARACTER(LEN=20), INTENT(IN) :: VarDim
+    INTEGER, INTENT(IN) :: DataType
+
     CALL add_variables_multiple_dims(OutFile, [VarName], [VarDim], DataType)
 
   END SUBROUTINE add_variable_single_dim
 
+  SUBROUTINE set_dimension_data_real(OutFile, DimName, SourceData)
+    !*## Purpose
+    !
+    ! Set the data for a dimension variable
+    !
+    !## Method
+    !
+    ! Check that the dimension name is also a variable name, then attach the
+    ! data to the variable.
+
+    TYPE(NCFile), INTENT(IN) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: DimName
+    REAL, DIMENSION(:), INTENT(IN) :: SourceData
+
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    ! Checker for validity of dimension name
+    LOGICAL :: IsDimension
+    INTEGER :: DimIter
+
+    ! Check that it's a dimension
+    IsDimension = .FALSE.
+    DO DimIter = 1, SIZE(OutFile%DimNames)
+      IF (TRIM(DimName) == TRIM(OutFile%DimNames(DimIter))) THEN
+        IsDimension = .TRUE.
+        EXIT
+      END IF
+    END DO
+
+    IF (.NOT. IsDimension) THEN
+      WRITE(ERROR_UNIT,*) TRIM(DimName)//" is not a dimension in the file."
+    END IF
+
+    ! Assign data to the associated variable
+    TargetVariable = get_target_variable(OutFile, DimName)
+
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      SourceData)
+  END SUBROUTINE set_dimension_data_real
+
+  SUBROUTINE set_dimension_data_int(OutFile, DimName, SourceData)
+    !*## Purpose
+    !
+    ! Set the data for a dimension variable
+    !
+    !## Method
+    !
+    ! Check that the dimension name is also a variable name, then attach the
+    ! data to the variable.
+
+    TYPE(NCFile), INTENT(IN) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: DimName
+    INTEGER, DIMENSION(:), INTENT(IN) :: SourceData
+
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    ! Checker for validity of dimension name
+    LOGICAL :: IsDimension
+    INTEGER :: DimIter
+
+    ! Check that it's a dimension
+    IsDimension = .FALSE.
+    DO DimIter = 1, SIZE(OutFile%DimNames)
+      IF (TRIM(DimName) == TRIM(OutFile%DimNames(DimIter))) THEN
+        IsDimension = .TRUE.
+        EXIT
+      END IF
+    END DO
+
+    IF (.NOT. IsDimension) THEN
+      WRITE(ERROR_UNIT,*) TRIM(DimName)//" is not a dimension in the file."
+    END IF
+
+    ! Assign data to the associated variable
+    TargetVariable = get_target_variable(OutFile, DimName)
+
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      SourceData)
+  END SUBROUTINE set_dimension_data_real
+
+  SUBROUTINE extend_unlimited_dimension_real(OutFile, DimName, DimValue)
+    !*## Purpose
+    !
+    ! Append a value to the unlimited dimension.
+    !
+    !## Method
+    !
+    ! Extend the size of the unlimited dimension by 1 with a new value, and
+    ! track the new size of the unlimited dimension so we can write to it.
+    
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=20), INTENT(IN) :: DimName
+    REAL, INTENT(IN) :: DimValue
+
+    ! Checker to ensure dimension is unlimited
+    INTEGER :: DimIter
+
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    DO DimIter = 1, SIZE(OutFile%DimNames)
+      IF (TRIM(OutFile%DimNames(DimIter)) == TRIM(DimName)) THEN
+        ! Check that the corresponding dimension is unlimited
+        IF (.NOT. OutFile%DimLengths(DimIter) == NF90_UNLIMITED) THEN
+          WRITE(ERROR_UNIT,*) "Attempted to append to a dimension that is "//&
+            "not unlimited."
+        END IF
+        EXIT
+      END IF
+    END DO
+
+    ! Assign data to the associated variable
+    TargetVariable = get_target_variable(OutFile, DimName)
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      DimValue, START=OutFile%UnlimitedDimensionLength+1))
+
+    ! Increment the size of the unlimited dimension
+    OutFile%UnlimitedDimensionLength = OutFile%UnlimitedDimensionLength + 1
+
+  END SUBROUTINE append_to_dimension_real
+      
   SUBROUTINE set_variable_data_real_rank2(OutFile, VarName, SourceData)
     !*## Purpose
     !
@@ -315,7 +454,7 @@ CONTAINS
     ! Is there any world where a rank 2 array would not be describing a spatial
     ! map? For now, assume not, so we know that the dimensions are lon, lat and
     ! should be chunked up accordingly.
-    CALL handle_ncstat(NF90_PUT_VAR(OutFile%VarID, TargetVariable%VarID,&
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=ProcDomain%ProcessDomainStart))
 
   END SUBROUTINE set_variable_data_real_rank2
@@ -349,15 +488,15 @@ CONTAINS
     DimStarts = [1, 1, 1]
     DO DimIter = 1, 3
       IF (TRIM(TargetVariable%DimNames(DimIter)) == "lon") THEN
-        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(1)
+        DimStarts(DimIter) = ProcDomain%ProcessDomainStart(1)
       ELSEIF (TRIM(TargetVariable%DimNames(DimIter)) == "lat") THEN
-        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(2)
+        DimStarts(DimIter) = ProcDomain%ProcessDomainStart(2)
       END IF
     END DO
 
     ! Now we can write the variable
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
-      START=DimStarts)
+      SourceData, START=DimStarts))
 
   END SUBROUTINE set_variable_data_real_rank3
 
@@ -384,7 +523,7 @@ CONTAINS
     ! Is there any world where a rank 2 array would not be describing a spatial
     ! map? For now, assume not, so we know that the dimensions are lon, lat and
     ! should be chunked up accordingly.
-    CALL handle_ncstat(NF90_PUT_VAR(OutFile%VarID, TargetVariable%VarID,&
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=ProcDomain%ProcessDomainStart))
 
   END SUBROUTINE set_variable_data_int_rank2
@@ -418,15 +557,15 @@ CONTAINS
     DimStarts = [1, 1, 1]
     DO DimIter = 1, 3
       IF (TRIM(TargetVariable%DimNames(DimIter)) == "lon") THEN
-        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(1)
+        DimStarts(DimIter) = ProcDomain%ProcessDomainStart(1)
       ELSEIF (TRIM(TargetVariable%DimNames(DimIter)) == "lat") THEN
-        DimStarts[DimIter] = ProcDomain%ProcessDomainStarts(2)
+        DimStarts(DimIter) = ProcDomain%ProcessDomainStart(2)
       END IF
     END DO
 
     ! Now we can write the variable
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
-      START=DimStarts)
+      SourceData, START=DimStarts))
 
   END SUBROUTINE set_variable_data_int_rank3
 
@@ -464,17 +603,17 @@ CONTAINS
     END IF
 
     ! Put the dimension value into the relevant variable (if task is master?)
-    DimensionVariable = get_target_variable(UnlimitedDim)
+    DimensionVariable = get_target_variable(OutFile, UnlimitedDim)
 
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, DimensionVariable%VarID,&
-      DimValue, START=OutFile%UnlimitedDimensionLength))
+      DimValue, START=[OutFile%UnlimitedDimensionLength]))
 
     ! Now assign the variable data
-    TargetVariable = get_target_variable(VarName)
+    TargetVariable = get_target_variable(OutFile, VarName)
 
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=[ProcDomain%ProcessDomainStart(1),&
-      ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength))
+      ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength]))
 
   END SUBROUTINE add_record_real_rank2
 
@@ -491,6 +630,8 @@ CONTAINS
     TYPE(NCFile) :: OutFile
     CHARACTER(LEN=20) :: VarName
     TYPE(NCVariable) :: TargetVariable
+    
+    INTEGER :: VarIter
 
     ! Get the relevant variable
     DO VarIter = 1, SIZE(OutFile%Variables)
@@ -501,3 +642,5 @@ CONTAINS
     END DO
 
   END FUNCTION get_target_variable
+
+END MODULE output_module

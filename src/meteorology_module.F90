@@ -1,12 +1,13 @@
 MODULE meteorology_module
 
 USE mpi_module, ONLY: mpi_grp_t
-USE netcdf, ONLY: NF90_OPEN, NF90_NOWRITE, NF90_INQ_DIMID,&
-  NF90_INQUIRE_DIMENSION, NF90_INQ_VARID, NF90_GET_VAR
+USE netcdf
 USE datasetreader_module, ONLY: DatasetReader,&
   initialise_datasetreader_at_timestep, get_data
 USE common_module, ONLY: handle_ncstat
-USE domain_module, ONLY: ProcessDomain
+USE domain_module, ONLY: ProcessDomain, GlobalDomain, from_matrix_to_vector,&
+  from_vector_to_matrix
+USE output_module, ONLY: NCFile, initialise_output_file
 
 IMPLICIT NONE
 
@@ -15,25 +16,23 @@ TYPE MetType
     ShortwaveRad, LongwaveRad
 END TYPE MetType
 
-INTEGER, DIMENSION(:), ALLOCATABLE :: LonIDs, LatIDs
-
 ! Set up the variable IDs
 INTEGER, PARAMETER :: RainID = 1, TemperatureID = 2, WindID = 3,&
   PressureID = 4, ShortwaveRadID = 5, LongwaveRadID = 6, NumVariables = 6
 
-! Specify which ones are required
-INTEGER, DIMENSION(5) :: RequiredVariables =&
-  [RainID, TemperatureID, WindID, PressureID, ShortwaveRadID]
-
-! And which ones are optional
-INTEGER, DIMENSION(1) :: OptionalVariables =&
-  [LongwaveRadID]
-
 TYPE(DatasetReader), DIMENSION(NumVariables) :: MetDataReaders
+
+! Information about the process and global domains
+TYPE(ProcessDomain) :: ProcDomain
+TYPE(GlobalDomain) :: GlobDomain
+
+! File to write output to
+TYPE(NCFile) :: MetOutputFile
 
 CONTAINS
 
-SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomain, mpi_grp)
+SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
+    mpi_grp)
   !*## Purpose
   !
   ! Prepare the meteorology input routines
@@ -44,7 +43,8 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomain, mpi_grp)
 
   REAL, INTENT(IN) :: Timestep
   TYPE(MetType), INTENT(OUT) :: Met
-  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
+  TYPE(ProcessDomain), INTENT(IN) :: ProcDomainIn
+  TYPE(GlobalDomain), INTENT(IN) :: GlobDomainIn
   TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   CHARACTER(LEN=300) :: RainFile, TemperatureFile, WindFile, PressureFile,&
@@ -86,9 +86,29 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomain, mpi_grp)
   MetDataReaders(LongwaveRadID) = initialise_datasetreader_at_timestep(&
     LongwaveRadFile, ['LWdown'], Timestep, ProcDomain, mpi_grp)
 
+  ! Grab a local copy of the process and global domain
+  ProcDomain = ProcDomainIn
+  GlobDomain = GlobDomainIn
+
+  ! Create the file to write the output to
+  MetOutputFile = initialise_output_file("meteorology_output.nc",&
+    ["lon", "lat", "time"], [SIZE(GlobDomain%LongitudeAxis),&
+    SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED)
+
+  ! Set the longitude/latitude axes
+  CALL add_variables(MetOutputFile, "lon", "lon", NF90_FLOAT)
+  CALL add_variables(MetOutputFile, "lat", "lat", NF90_FLOAT)
+  CALL set_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
+  CALL set_dimension_data(MetOutputFile, "lat", GlobDomain%LatitudeAxis)
+
+  ! Now initialise the meteorology variables
+  CALL add_variables(MetOutputFile,&
+    ["Rainf", "Tair", "wind", "Psurf", "SWDown", "LWDown"],&
+    ["lon", "lat", "time"], NF90_FLOAT)
+
 END SUBROUTINE prepare_meteorology
 
-SUBROUTINE get_meteorology(Year, Timestep, ProcDomain, Met)
+SUBROUTINE get_meteorology(Year, Timestep, Met)
   !*## Purpose
   !
   ! Apply the meteorology from a given year and timestep.
@@ -100,14 +120,13 @@ SUBROUTINE get_meteorology(Year, Timestep, ProcDomain, Met)
   ! record based off the landmask.
 
   INTEGER, INTENT(IN) :: Year, Timestep
-  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
   TYPE(MetType), INTENT(INOUT) :: Met
 
   ! Iterators
   INTEGER :: VarIter, Point
 
   ! Read the data from file into the DataStorage attached to the readers
-  DO VarIter = 1, SIZE(RequiredVariables)
+  DO VarIter = 1, NumVariables
     CALL get_data(MetDataReaders(VarIter), Year, Timestep)
   END DO
 
@@ -127,30 +146,27 @@ SUBROUTINE get_meteorology(Year, Timestep, ProcDomain, Met)
 
 END SUBROUTINE get_meteorology
 
-SUBROUTINE from_matrix_to_vector(MatrixInput, VectorOutput, ProcDomain)
+SUBROUTINE write_meteorology(Met, Time)
   !*## Purpose
   !
-  ! Map a matrix of input data to a 1D vector using the process domain
-  ! information.
+  ! Write out the meteorology data back in matrix format
   !
   !## Method
   !
-  ! The process domain contains the per process mapping from the 2D data input
-  ! domain to the 1D vector domain used in CABLE's science routines. Use this
-  ! information to map from to the other.
+  ! Convert the vectorised meteorology to a matrix, then write it to the file
+  ! using the NCFile interface.
 
-  REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: MatrixInput
-  REAL, DIMENSION(:), ALLOCATABLE, INTENT(INOUT) :: VectorOutput
-  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
+  TYPE(MetType), INTENT(IN) :: Met
+  INTEGER, INTENT(IN) :: Time
 
-  ! Just need an iterator
-  INTEGER :: Point
+  ! Need temporary storage for the reshaped data
+  REAL, DIMENSION(:,:), ALLOCATABLE :: MetStorage
 
-  DO Point = 1, SIZE(ProcDomain%LongitudeIDs)
-    VectorOutput(Point) = MatrixInput(ProcDomain%LongitudeIDs(Point),&
-      ProcDomain%LatitudeIDs(Point))
-  END DO
+  ! Use the process domain to allocate the storage
+  ALLOCATE(MetStorage(ProcDomain%ProcessDomainSize(1),&
+    ProcDomain%ProcessDomainSize(2)))
 
-END SUBROUTINE from_matrix_to_vector
+  ! For each variable, reshape to matrix then write out
+
 
 END MODULE meteorology_module
