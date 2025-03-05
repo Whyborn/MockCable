@@ -32,7 +32,7 @@ MODULE output_module
     !*## Purpose
     !
     ! A derived type used to assist in output routines
-    INTEGER VarID
+    INTEGER :: VarID
     CHARACTER(LEN=20) :: VarName
 
     ! Dimension names and IDs
@@ -61,15 +61,15 @@ MODULE output_module
     MODULE PROCEDURE extend_unlimited_dimension_real
   END INTERFACE extend_unlimited_dimension
 
-  INTERFACE set_variable_data
-    MODULE PROCEDURE set_variable_data_real_rank2
-    MODULE PROCEDURE set_variable_data_real_rank3
-    MODULE PROCEDURE set_variable_data_int_rank2
-    MODULE PROCEDURE set_variable_data_int_rank3
+  INTERFACE put_variable_data
+    MODULE PROCEDURE put_variable_data_real_rank2
+    MODULE PROCEDURE put_variable_data_real_rank3
+    MODULE PROCEDURE put_variable_data_int_rank2
+    MODULE PROCEDURE put_variable_data_int_rank3
   END INTERFACE set_variable_data
 
-  INTERFACE add_record
-    MODULE PROCEDURE add_record_real_rank2
+  INTERFACE put_record
+    MODULE PROCEDURE put_record_real_rank2
     !MODULE PROCEDURE add_record_real_rank3
     !MODULE PROCEDURE add_record_int_rank2
     !MODULE PROCEDURE add_record_int_rank3
@@ -116,6 +116,8 @@ CONTAINS
 #else
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif
+
+    CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END FUNCTION initialise_output_file_by_name
 
@@ -165,6 +167,9 @@ CONTAINS
         " given to add_dimensions."
     END IF
 
+    ! Set the file to definition mode
+    CALL handle_ncstat(NF90_REDEF(OutFile%FileID))
+
     ! Allocate memory for the derived type names
     ALLOCATE(OutFile%DimNames(SIZE(DimNames)))
     ALLOCATE(OutFile%DimLengths(SIZE(DimLengths)))
@@ -177,6 +182,8 @@ CONTAINS
         OutFile%HasUnlimitedDimension = .TRUE.
       END IF
     END DO
+
+    CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END SUBROUTINE set_dimensions
 
@@ -205,6 +212,9 @@ CONTAINS
 
     ! Store inferred DimIDs
     INTEGER, DIMENSION(:), ALLOCATABLE :: VarDimIDs
+
+    ! Set the file to definition mode
+    CALL handle_ncstat(NF90_REDEF(OutFile%FileID))
 
     ! We will want to redefine the length of the file's variables, if it's
     ! already allocated
@@ -243,14 +253,16 @@ CONTAINS
 
     ! Now we know the dimension IDs of each of the desired dimensions
     DO VarIter = 1, SIZE(VarNames)
-      CALL handle_ncstat(OutFile%FileID, VarNames(VarIter), DataType,&
-        VarDimIDs, OutFile%Variables(StartPoint + VarIter)%VarID)
+      CALL handle_ncstat(NF90_DEF_VAR(OutFile%FileID, VarNames(VarIter),&
+        DataType, VarDimIDs, OutFile%Variables(StartPoint + VarIter)%VarID))
 
       ! Set up the NCVariable
       OutFile%Variables(StartPoint + VarIter)%VarName = VarNames(VarIter)
       OutFile%Variables(StartPoint + VarIter)%DimNames = VarDims
       OutFile%Variables(StartPoint + VarIter)%DimIDs = VarDimIDs
     END DO
+
+    CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END SUBROUTINE add_variables_multiple_dims
 

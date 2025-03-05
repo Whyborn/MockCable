@@ -90,19 +90,21 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   ProcDomain = ProcDomainIn
   GlobDomain = GlobDomainIn
 
+  ! Iterate through the variables
+
   ! Create the file to write the output to
   MetOutputFile = initialise_output_file("meteorology_output.nc",&
     ["lon", "lat", "time"], [SIZE(GlobDomain%LongitudeAxis),&
     SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED)
-
+  
   ! Set the longitude/latitude axes
-  CALL add_variables(MetOutputFile, "lon", "lon", NF90_FLOAT)
-  CALL add_variables(MetOutputFile, "lat", "lat", NF90_FLOAT)
-  CALL set_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
-  CALL set_dimension_data(MetOutputFile, "lat", GlobDomain%LatitudeAxis)
+  CALL def_variables(MetOutputFile, "lon", "lon", NF90_FLOAT)
+  CALL def_variables(MetOutputFile, "lat", "lat", NF90_FLOAT)
+  CALL put_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
+  CALL put_dimension_data(MetOutputFile, "lat", GlobDomain%LatitudeAxis)
 
   ! Now initialise the meteorology variables
-  CALL add_variables(MetOutputFile,&
+  CALL def_variables(MetOutputFile,&
     ["Rainf", "Tair", "wind", "Psurf", "SWDown", "LWDown"],&
     ["lon", "lat", "time"], NF90_FLOAT)
 
@@ -162,11 +164,30 @@ SUBROUTINE write_meteorology(Met, Time)
   ! Need temporary storage for the reshaped data
   REAL, DIMENSION(:,:), ALLOCATABLE :: MetStorage
 
+  ! Extend the time dimension with the new time
+  CALL extend_unlimited_dimension(MetOutputFile, "time", Time)
+  
   ! Use the process domain to allocate the storage
   ALLOCATE(MetStorage(ProcDomain%ProcessDomainSize(1),&
     ProcDomain%ProcessDomainSize(2)))
 
   ! For each variable, reshape to matrix then write out
+  CALL from_vector_to_matrix(Met%Rain, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "Rainf", MetStorage)
 
+  CALL from_vector_to_matrix(Met%Temperature, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "Tair", MetStorage)
+
+  CALL from_vector_to_matrix(Met%Wind, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "wind", MetStorage)
+
+  CALL from_vector_to_matrix(Met%Pressure, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "Psurf", MetStorage)
+
+  CALL from_vector_to_matrix(Met%ShortwaveRad, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "SWdown", MetStorage)
+
+  CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "LWdown", MetStorage)
 
 END MODULE meteorology_module
