@@ -112,8 +112,8 @@ CONTAINS
     TYPE(NCFile) :: OutFile
 
 #ifdef __MPI__
-    CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID,&
-        COMM=mpi_grp%comm, INFO=MPI_INFO_NULL))
+    CALL handle_ncstat(NF90_CREATE(FileName, IOR(NF90_CLOBBER, NF90_NETCDF4),&
+      OutFile%FileID, COMM=mpi_grp%comm, INFO=MPI_INFO_NULL))
 #else
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif
@@ -173,12 +173,17 @@ CONTAINS
 
     ! Allocate memory for the derived type names
     ALLOCATE(OutFile%DimNames(SIZE(DimNames)))
+    ALLOCATE(OutFile%DimIDs(SIZE(DimNames)))
     ALLOCATE(OutFile%DimLengths(SIZE(DimLengths)))
 
     ! Run through the passed dimensions
     DO DimIter = 1, SIZE(DimNames)
       CALL handle_ncstat(NF90_DEF_DIM(OutFile%FileID, TRIM(DimNames(DimIter)),&
         DimLengths(DimIter), OutFile%DimIDs(DimIter)))
+
+      OutFile%DimNames(DimIter) = DimNames(DimIter)
+      OutFile%DimLengths(DimIter) = DimLengths(DimIter)
+
       IF (DimLengths(DimIter) == NF90_UNLIMITED) THEN
         OutFile%HasUnlimitedDimension = .TRUE.
       END IF
