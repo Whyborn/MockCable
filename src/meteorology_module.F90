@@ -95,7 +95,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   ! Create the file to write the output to
   MetOutputFile = initialise_output_file("meteorology_output.nc",&
     ["lon", "lat", "time"], [SIZE(GlobDomain%LongitudeAxis),&
-    SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED)
+    SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED])
   
   ! Set the longitude/latitude axes
   CALL def_variables(MetOutputFile, "lon", "lon", NF90_FLOAT)
@@ -189,5 +189,7 @@ SUBROUTINE write_meteorology(Met, Time)
 
   CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
   CALL put_record(MetOutputFile, "LWdown", MetStorage)
+
+END SUBROUTINE write_meteorology
 
 END MODULE meteorology_module

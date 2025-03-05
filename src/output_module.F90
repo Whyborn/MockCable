@@ -45,17 +45,17 @@ MODULE output_module
     MODULE PROCEDURE initialise_output_file_with_dimensions
   END INTERFACE initialise_output_file
 
-  INTERFACE add_variables
-    MODULE PROCEDURE add_variables_multiple_dims
-    MODULE PROCEDURE add_variables_single_dim
-    MODULE PROCEDURE add_variable_multiple_dims
-    MODULE PROCEDURE add_variable_single_dim
-  END INTERFACE add_variables
+  INTERFACE def_variables
+    MODULE PROCEDURE def_variables_multiple_dims
+    MODULE PROCEDURE def_variables_single_dim
+    MODULE PROCEDURE def_variable_multiple_dims
+    MODULE PROCEDURE def_variable_single_dim
+  END INTERFACE def_variables
 
-  INTERFACE set_dimension_data
-    MODULE PROCEDURE set_dimension_data_real
-    MODULE PROCEDURE set_dimension_data_int
-  END INTERFACE set_dimension_data
+  INTERFACE put_dimension_data
+    MODULE PROCEDURE put_dimension_data_real
+    MODULE PROCEDURE put_dimension_data_int
+  END INTERFACE put_dimension_data
 
   INTERFACE extend_unlimited_dimension
     MODULE PROCEDURE extend_unlimited_dimension_real
@@ -66,14 +66,14 @@ MODULE output_module
     MODULE PROCEDURE put_variable_data_real_rank3
     MODULE PROCEDURE put_variable_data_int_rank2
     MODULE PROCEDURE put_variable_data_int_rank3
-  END INTERFACE set_variable_data
+  END INTERFACE put_variable_data
 
   INTERFACE put_record
     MODULE PROCEDURE put_record_real_rank2
     !MODULE PROCEDURE add_record_real_rank3
     !MODULE PROCEDURE add_record_int_rank2
     !MODULE PROCEDURE add_record_int_rank3
-  END INTERFACE add_record
+  END INTERFACE put_record
 
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: ProcDomain
@@ -141,11 +141,11 @@ CONTAINS
     OutFile = initialise_output_file_by_name(FileName)
 
     ! Add dimensions
-    CALL set_dimensions(OutFile, DimNames, DimLengths)
+    CALL put_dimensions(OutFile, DimNames, DimLengths)
 
   END FUNCTION initialise_output_file_with_dimensions
 
-  SUBROUTINE set_dimensions(OutFile, DimNames, DimLengths)
+  SUBROUTINE put_dimensions(OutFile, DimNames, DimLengths)
     !*## Purpose
     !
     ! Add the dimensions with the given lengths to the NetCDF file.
@@ -185,9 +185,9 @@ CONTAINS
 
     CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
-  END SUBROUTINE set_dimensions
+  END SUBROUTINE put_dimensions
 
-  SUBROUTINE add_variables_multiple_dims(OutFile, VarNames, VarDims, DataType)
+  SUBROUTINE def_variables_multiple_dims(OutFile, VarNames, VarDims, DataType)
     !*## Purpose
     !
     ! Add a variable to the NetCDF file.
@@ -264,63 +264,63 @@ CONTAINS
 
     CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
-  END SUBROUTINE add_variables_multiple_dims
+  END SUBROUTINE def_variables_multiple_dims
 
-  SUBROUTINE add_variables_single_dim(OutFile, VarNames, VarDim, DataType)
+  SUBROUTINE def_variables_single_dim(OutFile, VarNames, VarDim, DataType)
     !*## Purpose
     !
     ! Add single dimensioned variables to the NCFile.
     !
     !## Method
     !
-    ! Invoke the full-featured add_variables_multiple_dims function
+    ! Invoke the full-featured def_variables_multiple_dims function
     
     TYPE(NCFile), INTENT(INOUT) :: OutFile
     CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarNames
     CHARACTER(LEN=20), INTENT(IN) :: VarDim
     INTEGER, INTENT(IN) :: DataType
 
-    CALL add_variables_multiple_dims(OutFile, VarNames, [VarDim], DataType)
+    CALL def_variables_multiple_dims(OutFile, VarNames, [VarDim], DataType)
 
-  END SUBROUTINE add_variables_single_dim
+  END SUBROUTINE def_variables_single_dim
 
-  SUBROUTINE add_variable_multiple_dims(OutFile, VarName, VarDims, DataType)
+  SUBROUTINE def_variable_multiple_dims(OutFile, VarName, VarDims, DataType)
     !*## Purpose
     !
     ! Add a single variable to the NCFile.
     !
     !## Method
     !
-    ! Invoke the full-featured add_variables_multiple_dims function
+    ! Invoke the full-featured def_variables_multiple_dims function
     
     TYPE(NCFile), INTENT(INOUT) :: OutFile
     CHARACTER(LEN=20), INTENT(IN) :: VarName
     CHARACTER(LEN=20), DIMENSION(:), INTENT(IN) :: VarDims
     INTEGER, INTENT(IN) :: DataType
 
-    CALL add_variables_multiple_dims(OutFile, [VarName], VarDims, DataType)
+    CALL def_variables_multiple_dims(OutFile, [VarName], VarDims, DataType)
 
-  END SUBROUTINE add_variable_multiple_dims
+  END SUBROUTINE def_variable_multiple_dims
 
-  SUBROUTINE add_variable_single_dim(OutFile, VarName, VarDim, DataType)
+  SUBROUTINE def_variable_single_dim(OutFile, VarName, VarDim, DataType)
     !*## Purpose
     !
     ! Add a single dimensioned variable to the NCFile.
     !
     !## Method
     !
-    ! Invoke the full-featured add_variables_multiple_dims function
+    ! Invoke the full-featured def_variables_multiple_dims function
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
     CHARACTER(LEN=20), INTENT(IN) :: VarName
     CHARACTER(LEN=20), INTENT(IN) :: VarDim
     INTEGER, INTENT(IN) :: DataType
 
-    CALL add_variables_multiple_dims(OutFile, [VarName], [VarDim], DataType)
+    CALL def_variables_multiple_dims(OutFile, [VarName], [VarDim], DataType)
 
-  END SUBROUTINE add_variable_single_dim
+  END SUBROUTINE def_variable_single_dim
 
-  SUBROUTINE set_dimension_data_real(OutFile, DimName, SourceData)
+  SUBROUTINE put_dimension_data_real(OutFile, DimName, SourceData)
     !*## Purpose
     !
     ! Set the data for a dimension variable
@@ -358,10 +358,10 @@ CONTAINS
     TargetVariable = get_target_variable(OutFile, DimName)
 
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
-      SourceData)
-  END SUBROUTINE set_dimension_data_real
+      SourceData))
+  END SUBROUTINE put_dimension_data_real
 
-  SUBROUTINE set_dimension_data_int(OutFile, DimName, SourceData)
+  SUBROUTINE put_dimension_data_int(OutFile, DimName, SourceData)
     !*## Purpose
     !
     ! Set the data for a dimension variable
@@ -399,8 +399,8 @@ CONTAINS
     TargetVariable = get_target_variable(OutFile, DimName)
 
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
-      SourceData)
-  END SUBROUTINE set_dimension_data_real
+      SourceData))
+  END SUBROUTINE put_dimension_data_int
 
   SUBROUTINE extend_unlimited_dimension_real(OutFile, DimName, DimValue)
     !*## Purpose
@@ -436,14 +436,14 @@ CONTAINS
     ! Assign data to the associated variable
     TargetVariable = get_target_variable(OutFile, DimName)
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
-      DimValue, START=OutFile%UnlimitedDimensionLength+1))
+      DimValue, START=[OutFile%UnlimitedDimensionLength+1]))
 
     ! Increment the size of the unlimited dimension
     OutFile%UnlimitedDimensionLength = OutFile%UnlimitedDimensionLength + 1
 
-  END SUBROUTINE append_to_dimension_real
+  END SUBROUTINE extend_unlimited_dimension_real
       
-  SUBROUTINE set_variable_data_real_rank2(OutFile, VarName, SourceData)
+  SUBROUTINE put_variable_data_real_rank2(OutFile, VarName, SourceData)
     !*## Purpose
     !
     ! Assign data to a specified variable.
@@ -469,9 +469,9 @@ CONTAINS
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=ProcDomain%ProcessDomainStart))
 
-  END SUBROUTINE set_variable_data_real_rank2
+  END SUBROUTINE put_variable_data_real_rank2
 
-  SUBROUTINE set_variable_data_real_rank3(OutFile, VarName, SourceData)
+  SUBROUTINE put_variable_data_real_rank3(OutFile, VarName, SourceData)
     !*## Purpose
     !
     ! Assign data to a specified variable.
@@ -510,9 +510,9 @@ CONTAINS
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=DimStarts))
 
-  END SUBROUTINE set_variable_data_real_rank3
+  END SUBROUTINE put_variable_data_real_rank3
 
-  SUBROUTINE set_variable_data_int_rank2(OutFile, VarName, SourceData)
+  SUBROUTINE put_variable_data_int_rank2(OutFile, VarName, SourceData)
     !*## Purpose
     !
     ! Assign data to a specified variable.
@@ -538,9 +538,9 @@ CONTAINS
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=ProcDomain%ProcessDomainStart))
 
-  END SUBROUTINE set_variable_data_int_rank2
+  END SUBROUTINE put_variable_data_int_rank2
 
-  SUBROUTINE set_variable_data_int_rank3(OutFile, VarName, SourceData)
+  SUBROUTINE put_variable_data_int_rank3(OutFile, VarName, SourceData)
     !*## Purpose
     !
     ! Assign data to a specified variable.
@@ -579,10 +579,9 @@ CONTAINS
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=DimStarts))
 
-  END SUBROUTINE set_variable_data_int_rank3
+  END SUBROUTINE put_variable_data_int_rank3
 
-  SUBROUTINE add_record_real_rank2(OutFile, VarName, SourceData, DimValue,&
-      UnlimitedDim)
+  SUBROUTINE put_record_real_rank2(OutFile, VarName, SourceData, UnlimitedDim)
     !*## Purpose
     !
     ! Add a record to a NetCDF variable that has an umlimited dimension,
@@ -598,7 +597,6 @@ CONTAINS
     TYPE(NCFile), INTENT(INOUT) :: OutFile
     CHARACTER(LEN=20), INTENT(IN) :: VarName
     REAL, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
-    REAL, INTENT(IN) :: DimValue
     CHARACTER(LEN=20), OPTIONAL :: UnlimitedDim
 
     ! Dimension and target variables
@@ -614,12 +612,6 @@ CONTAINS
       WRITE(ERROR_UNIT,*) "File has no unlimited dimension, cannot add record"
     END IF
 
-    ! Put the dimension value into the relevant variable (if task is master?)
-    DimensionVariable = get_target_variable(OutFile, UnlimitedDim)
-
-    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, DimensionVariable%VarID,&
-      DimValue, START=[OutFile%UnlimitedDimensionLength]))
-
     ! Now assign the variable data
     TargetVariable = get_target_variable(OutFile, VarName)
 
@@ -627,7 +619,7 @@ CONTAINS
       SourceData, START=[ProcDomain%ProcessDomainStart(1),&
       ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength]))
 
-  END SUBROUTINE add_record_real_rank2
+  END SUBROUTINE put_record_real_rank2
 
   FUNCTION get_target_variable(OutFile, VarName) RESULT(TargetVariable)
     !*## Purpose
