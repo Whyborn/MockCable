@@ -73,6 +73,10 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   ALLOCATE(Met%Rain(NPoints), Met%Temperature(NPoints), Met%Wind(NPoints),&
     Met%Pressure(NPoints), Met%ShortwaveRad(NPoints), Met%LongwaveRad(NPoints))
 
+  ! Grab a local copy of the process and global domain
+  ProcDomain = ProcDomainIn
+  GlobDomain = GlobDomainIn
+
   ! Initialise the dataset readers
   MetDataReaders(RainID) = initialise_datasetreader_at_timestep(&
     RainFile, ['Rainf'], Timestep, ProcDomain, mpi_grp)
@@ -86,12 +90,6 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
     ShortwaveRadFile, ['SWdown'], Timestep, ProcDomain, mpi_grp)
   MetDataReaders(LongwaveRadID) = initialise_datasetreader_at_timestep(&
     LongwaveRadFile, ['LWdown'], Timestep, ProcDomain, mpi_grp)
-
-  ! Grab a local copy of the process and global domain
-  ProcDomain = ProcDomainIn
-  GlobDomain = GlobDomainIn
-
-  ! Iterate through the variables
 
   ! Create the file to write the output to
   MetOutputFile = initialise_output_file("meteorology_output.nc",&

@@ -43,7 +43,7 @@ TYPE DatasetReader
   CHARACTER(LEN=10), DIMENSION(:), ALLOCATABLE :: VarNames
 
   ! ID for the current file and variable
-  INTEGER :: CurrentFileID, CurrentVarID, CurrentFileIndex
+  INTEGER :: CurrentFileID = -1, CurrentVarID, CurrentFileIndex
 
   ! MPI information
   TYPE(mpi_grp_t) :: mpi_grp
@@ -400,7 +400,7 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   !
   !## Method
   !
-  ! Use NetCDF routines to acquire a new ID associated with the fi994a3c7le at the
+  ! Use NetCDF routines to acquire a new ID associated with the file at the
   ! given index.
 
   INTEGER, INTENT(IN) :: FileIndex
@@ -408,7 +408,9 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
   ! Close the old reader
-  CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+  IF (Reader%CurrentFileID /= -1) THEN
+    CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+  END IF
 
 #ifdef __MPI__
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
