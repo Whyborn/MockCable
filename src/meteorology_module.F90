@@ -99,6 +99,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   ! Set the longitude/latitude axes
   CALL def_variables(MetOutputFile, "lon", "lon", NF90_FLOAT)
   CALL def_variables(MetOutputFile, "lat", "lat", NF90_FLOAT)
+  CALL def_variables(MetOutputFile, "time", "time", NF90_INT)
   CALL put_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
   CALL put_dimension_data(MetOutputFile, "lat", GlobDomain%LatitudeAxis)
 
@@ -164,11 +165,13 @@ SUBROUTINE write_meteorology(Met, Time)
   REAL, DIMENSION(:,:), ALLOCATABLE :: MetStorage
 
   ! Extend the time dimension with the new time
-  CALL extend_unlimited_dimension(MetOutputFile, "time", REAL(Time))
+  CALL extend_unlimited_dimension(MetOutputFile, "time", Time)
   
   ! Use the process domain to allocate the storage
   ALLOCATE(MetStorage(ProcDomain%ProcessDomainSize(1),&
     ProcDomain%ProcessDomainSize(2)))
+
+  MetStorage = NF90_FILL_REAL
 
   ! For each variable, reshape to matrix then write out
   CALL from_vector_to_matrix(Met%Rain, MetStorage, ProcDomain)
@@ -184,10 +187,10 @@ SUBROUTINE write_meteorology(Met, Time)
   CALL put_record(MetOutputFile, "Psurf", MetStorage)
 
   CALL from_vector_to_matrix(Met%ShortwaveRad, MetStorage, ProcDomain)
-  CALL put_record(MetOutputFile, "SWdown", MetStorage)
+  CALL put_record(MetOutputFile, "SWDown", MetStorage)
 
   CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
-  CALL put_record(MetOutputFile, "LWdown", MetStorage)
+  CALL put_record(MetOutputFile, "LWDown", MetStorage)
 
 END SUBROUTINE write_meteorology
 

@@ -16,7 +16,7 @@ MODULE output_module
     INTEGER :: FileID
 
     ! Dimensions
-    CHARACTER(LEN=50), DIMENSION(:), ALLOCATABLE :: DimNames
+    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimLengths
 
@@ -37,7 +37,7 @@ MODULE output_module
     CHARACTER(LEN=50) :: VarName
 
     ! Dimension names and IDs
-    CHARACTER(:), DIMENSION(:), ALLOCATABLE :: DimNames
+    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
   END TYPE NCVariable
 
@@ -60,6 +60,7 @@ MODULE output_module
 
   INTERFACE extend_unlimited_dimension
     MODULE PROCEDURE extend_unlimited_dimension_real
+    MODULE PROCEDURE extend_unlimited_dimension_int
   END INTERFACE extend_unlimited_dimension
 
   INTERFACE put_variable_data
@@ -72,7 +73,7 @@ MODULE output_module
   INTERFACE put_record
     MODULE PROCEDURE put_record_real_rank2
     !MODULE PROCEDURE add_record_real_rank3
-    !MODULE PROCEDURE add_record_int_rank2
+    MODULE PROCEDURE put_record_int_rank2
     !MODULE PROCEDURE add_record_int_rank3
   END INTERFACE put_record
 
@@ -91,8 +92,8 @@ CONTAINS
     !
     ! Bind local copies of the mpi configuration and local domain.
 
-    TYPE(ProcessDomain), INTENT(IN) :: ProcDomainIn
-    TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp_in
+    TYPE(ProcessDomain), INTENT(INOUT) :: ProcDomainIn
+    TYPE(mpi_grp_t), INTENT(INOUT) :: mpi_grp_in
 
     ProcDomain = ProcDomainIn
     mpi_grp = mpi_grp_in
@@ -112,8 +113,9 @@ CONTAINS
     TYPE(NCFile) :: OutFile
 
 #ifdef __MPI__
-    CALL handle_ncstat(NF90_CREATE(FileName, IOR(NF90_CLOBBER, NF90_NETCDF4),&
-      OutFile%FileID, COMM=mpi_grp%comm, INFO=MPI_INFO_NULL))
+    CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
+      IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
+      MPI_INFO_NULL, OutFile%FileID))
 #else
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif
@@ -189,6 +191,7 @@ CONTAINS
       END IF
     END DO
 
+    ! Set the file back to write mode
     CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END SUBROUTINE put_dimensions
@@ -227,7 +230,7 @@ CONTAINS
     IF (ALLOCATED(OutFile%Variables)) THEN
       ! We've been through the process before, so we need to redefine the array
       ! of variable names and IDs, rather than just allocate
-      TempVariables(:) = OutFile%Variables
+      TempVariables = OutFile%Variables
 
       ! Set the starting point for this set of variables
       StartPoint = SIZE(OutFile%Variables)
@@ -262,13 +265,22 @@ CONTAINS
       CALL handle_ncstat(NF90_DEF_VAR(OutFile%FileID, VarNames(VarIter),&
         DataType, VarDimIDs, OutFile%Variables(StartPoint + VarIter)%VarID))
 
+#ifdef __MPI__
+      CALL handle_ncstat(NF90_VAR_PAR_ACCESS(OutFile%FileID,&
+        OutFile%Variables(StartPoint + VarIter)%VarID, NF90_COLLECTIVE))
+#endif
+
       ! Set up the NCVariable
+      ALLOCATE(OutFile%Variables(StartPoint + VarIter)%DimIDs(SIZE(VarNames)),&
+        OutFile%Variables(StartPoint + VarIter)%DimNames(SIZE(VarNames)))
+
       OutFile%Variables(StartPoint + VarIter)%VarName = VarNames(VarIter)
       OutFile%Variables(StartPoint + VarIter)%DimNames = VarDims
       OutFile%Variables(StartPoint + VarIter)%DimIDs = VarDimIDs
     END DO
 
-    CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
+    ! Set the file back to write mode
+    !CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END SUBROUTINE def_variables_multiple_dims
 
@@ -442,13 +454,56 @@ CONTAINS
     ! Assign data to the associated variable
     TargetVariable = get_target_variable(OutFile, DimName)
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
-      DimValue, START=[OutFile%UnlimitedDimensionLength+1]))
+      [DimValue], START=[OutFile%UnlimitedDimensionLength+1], COUNT=[1]))
+    WRITE(*,*) "Extended the dimension once"
 
     ! Increment the size of the unlimited dimension
     OutFile%UnlimitedDimensionLength = OutFile%UnlimitedDimensionLength + 1
 
   END SUBROUTINE extend_unlimited_dimension_real
       
+  SUBROUTINE extend_unlimited_dimension_int(OutFile, DimName, DimValue)
+    !*## Purpose
+    !
+    ! Append a value to the unlimited dimension.
+    !
+    !## Method
+    !
+    ! Extend the size of the unlimited dimension by 1 with a new value, and
+    ! track the new size of the unlimited dimension so we can write to it.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=*), INTENT(IN) :: DimName
+    INTEGER, INTENT(IN) :: DimValue
+
+    ! Checker to ensure dimension is unlimited
+    INTEGER :: DimIter
+
+    ! The target variable we're writing to
+    TYPE(NCVariable) :: TargetVariable
+
+    DO DimIter = 1, SIZE(OutFile%DimNames)
+      IF (TRIM(OutFile%DimNames(DimIter)) == TRIM(DimName)) THEN
+        ! Check that the corresponding dimension is unlimited
+        IF (.NOT. OutFile%DimLengths(DimIter) == NF90_UNLIMITED) THEN
+          WRITE(ERROR_UNIT,*) "Attempted to append to a dimension that is "//&
+            "not unlimited."
+        END IF
+        EXIT
+      END IF
+    END DO
+
+    ! Assign data to the associated variable
+    TargetVariable = get_target_variable(OutFile, DimName)
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      DimValue, START=[OutFile%UnlimitedDimensionLength+1]))
+    WRITE(*,*) "Extended the dimension once"
+
+    ! Increment the size of the unlimited dimension
+    OutFile%UnlimitedDimensionLength = OutFile%UnlimitedDimensionLength + 1
+
+  END SUBROUTINE extend_unlimited_dimension_int
+
   SUBROUTINE put_variable_data_real_rank2(OutFile, VarName, SourceData)
     !*## Purpose
     !
@@ -623,9 +678,53 @@ CONTAINS
 
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       SourceData, START=[ProcDomain%ProcessDomainStart(1),&
-      ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength]))
+      ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength],&
+      COUNT=[ProcDomain%ProcessDomainSize(1), ProcDomain%ProcessDomainSize(2),&
+      1]))
 
   END SUBROUTINE put_record_real_rank2
+
+  SUBROUTINE put_record_int_rank2(OutFile, VarName, SourceData, UnlimitedDim)
+    !*## Purpose
+    !
+    ! Add a record to a NetCDF variable that has an umlimited dimension,
+    ! usually time.
+    !
+    !## Method
+    !
+    ! Determine which dimension is the umlimited dimension, then extend that
+    ! dimension variable by appending the DimValue. Write the record to the
+    ! same index as the length of variable corresponding to the unlimited
+    ! dimension.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
+    INTEGER, DIMENSION(:,:), ALLOCATABLE, INTENT(IN) :: SourceData
+    CHARACTER(LEN=*), OPTIONAL :: UnlimitedDim
+
+    ! Dimension and target variables
+    TYPE(NCVariable) :: DimensionVariable, TargetVariable
+
+    ! Check if UnlimitedDim was provided, if not assume time
+    IF (.NOT. PRESENT(UnlimitedDim)) THEN
+      UnlimitedDim = "time"
+    END IF
+
+    ! Make sure the file has an unlimited dimension
+    IF (.NOT. OutFile%HasUnlimitedDimension) THEN
+      WRITE(ERROR_UNIT,*) "File has no unlimited dimension, cannot add record"
+    END IF
+
+    ! Now assign the variable data
+    TargetVariable = get_target_variable(OutFile, VarName)
+
+    CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
+      SourceData, START=[ProcDomain%ProcessDomainStart(1),&
+      ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength],&
+      COUNT=[ProcDomain%ProcessDomainSize(1), ProcDomain%ProcessDomainSize(2),&
+      1]))
+
+  END SUBROUTINE put_record_int_rank2
 
   FUNCTION get_target_variable(OutFile, VarName) RESULT(TargetVariable)
     !*## Purpose

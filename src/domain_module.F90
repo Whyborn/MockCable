@@ -135,7 +135,7 @@ SUBROUTINE prepare_process_domain(Landmask, ProcDomain, mpi_grp)
   LonSize = SIZE(Landmask, 1)
   LatSize = SIZE(Landmask, 2)
   !ChunkSize = LonSize / mpi_grp%size
-  ChunkSize = LatSize / mpi_grp%size
+  ChunkSize = CEILING(REAL(LatSize) / REAL(mpi_grp%size))
 
   ! Set the process domain
   !ProcDomain%ProcessDomainStart = [1 + mpi_grp%rank * ChunkSize, 1]

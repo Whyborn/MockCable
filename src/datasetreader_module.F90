@@ -5,7 +5,7 @@ USE mpi
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
                   NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
-                  NF90_NOWRITE, NF90_CLOSE
+                  NF90_NOWRITE, NF90_NETCDF4, NF90_CLOSE
 USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, add_to_date, days_since,&
@@ -413,8 +413,9 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   END IF
 
 #ifdef __MPI__
-  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
-    Reader%CurrentFileID, COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
+  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
+    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
+    COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
 #else
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
     Reader%CurrentFileID))

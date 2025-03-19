@@ -49,7 +49,6 @@ PROGRAM mock_cable
       CALL write_meteorology(Met, TimeStep)
     END DO
   END DO
-
   ! Close everything down
   CALL finalise_meteorology()
   CALL mpi_mod_end()
