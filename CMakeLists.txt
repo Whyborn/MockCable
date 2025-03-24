@@ -27,6 +27,7 @@ add_library(
     src/domain_module.F90
     src/output_module.F90
     src/mpi_serial_stub_module.F90
+    src/partition.F90
 )
 
 if(MOCK_CABLE_MPI)
@@ -54,10 +55,16 @@ add_executable(
     src/mock_cable.F90
 )
 
+add_executable(
+    simple4by4
+    test/simple4by4.F90
+)
+
 target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF)
+target_link_libraries(simple4by4 PRIVATE common PkgConfig::NETCDF)
 
 if(MOCK_CABLE_MPI)
     target_link_libraries(test-common PRIVATE MPI::MPI_Fortran)
@@ -70,3 +77,4 @@ install(TARGETS test-common RUNTIME)
 install(TARGETS test-output RUNTIME)
 install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
+install(TARGETS simple4by4 RUNTIME)
