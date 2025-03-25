@@ -62,12 +62,10 @@ if(MOCK_CABLE_MPI)
     target_link_libraries(test-common PRIVATE MPI::MPI_FORTRAN)
     target_link_libraries(test-output PRIVATE MPI::MPI_FORTRAN)
     target_link_libraries(test-datasetreader PRIVATE MPI::MPI_FORTRAN)
-    target_link_libraries(mock_cable PRIVATE MPI::MPI_FORTRAN)
+    target_link_libraries(mock-cable PRIVATE MPI::MPI_FORTRAN)
 endif()
 
 install(TARGETS test-common RUNTIME)
 install(TARGETS test-output RUNTIME)
 install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
-
-
