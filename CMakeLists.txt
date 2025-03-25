@@ -30,32 +30,44 @@ add_library(
 
 if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
+    target_link_libraries(common PRIVATE MPI::MPI_Fortran)
 endif()
-
-add_executable(
-    mock-cable
-    src/mock_cable.F90
-)
-target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
-install(TARGETS mock-cable RUNTIME)
 
 add_executable(
     test-common
     test/test_common.F90
 )
-target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
-install(TARGETS test-common RUNTIME)
 
 add_executable(
     test-output
     test/test_output.F90
 )
-target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
-install(TARGETS test-output RUNTIME)
 
 add_executable(
     test-datasetreader
     test/test_datasetreader.F90
 )
-target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
+
+add_executable(
+    mock-cable
+    src/mock_cable.F90
+)
+
+target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
+target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF)
+target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF)
+target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF)
+
+if(MOCK_CABLE_MPI)
+    target_link_libraries(test-common PRIVATE MPI::MPI_FORTRAN)
+    target_link_libraries(test-output PRIVATE MPI::MPI_FORTRAN)
+    target_link_libraries(test-datasetreader PRIVATE MPI::MPI_FORTRAN)
+    target_link_libraries(mock_cable PRIVATE MPI::MPI_FORTRAN)
+endif()
+
+install(TARGETS test-common RUNTIME)
+install(TARGETS test-output RUNTIME)
 install(TARGETS test-datasetreader RUNTIME)
+install(TARGETS mock-cable RUNTIME)
+
+
