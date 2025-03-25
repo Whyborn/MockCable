@@ -15,7 +15,8 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
 
-add_compile_options("-g")
+set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
+add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
 add_library(
     common
     src/common_module.F90
@@ -44,3 +45,17 @@ add_executable(
 )
 target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
 install(TARGETS test-common RUNTIME)
+
+add_executable(
+    test-output
+    test/test_output.F90
+)
+target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
+install(TARGETS test-output RUNTIME)
+
+add_executable(
+    test-datasetreader
+    test/test_datasetreader.F90
+)
+target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF MPI::MPI_Fortran)
+install(TARGETS test-datasetreader RUNTIME)
