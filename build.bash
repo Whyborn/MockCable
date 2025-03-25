@@ -9,15 +9,16 @@ EOF
 }
 
 . /etc/bashrc
-module load cmake/3.24.2 netcdf/4.8.0p intel-compiler-llvm/2025.0.4 openmpi/4.1.3
 
 cmake_args=(-DCMAKE_Fortran_COMPILER=mpif90 -DMOCK_CABLE_MPI="OFF")
+mpi=0
 
 # Argument parsing adapted and stolen from http://mywiki.wooledge.org/BashFAQ/035#Complex_nonstandard_add-on_utilities
 while [ ${#} -gt 0 ]; do
     case ${1} in
       -m|--mpi)
          cmake_args+=(-DMOCK_CABLE_MPI="ON")
+         mpi=1
          ;;
       -h|--help)
          show_help
@@ -29,6 +30,14 @@ while [ ${#} -gt 0 ]; do
    shift
 done
 
+module load cmake/3.24.2 intel-compiler-llvm/2025.0.4 
+
+if [ ${mpi} -eq 1 ]; then
+   module load openmpi/4.1.3 netcdf/4.8.0p
+else
+   module load netcdf/4.8.0
+fi
+ 
 prepend_path PKG_CONFIG_PATH "${NETCDF_BASE}/lib/Intel/pkgconfig"
 
 if module is-loaded openmpi; then
@@ -38,6 +47,6 @@ if module is-loaded openmpi; then
 fi
 
 
-cmake -S . -B build -DMOCK_CABLE_MPI="ON" -DCMAKE_Fortran_COMPILER=mpif90
+cmake -S . -B build "${cmake_args[@]}"
 cmake --build build
 cmake --install build --prefix .
