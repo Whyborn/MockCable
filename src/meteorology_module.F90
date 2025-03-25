@@ -92,7 +92,8 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
     LongwaveRadFile, ['LWdown'], Timestep, ProcDomain, mpi_grp)
 
   ! Create the file to write the output to
-  MetOutputFile = initialise_output_file("meteorology_output.nc",&
+  MetOutputFile = initialise_output_file(&
+    "/scratch/rp23/lw5085/meteorology_output.nc",&
     ["lon", "lat", "time"], [SIZE(GlobDomain%LongitudeAxis),&
     SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED])
   
@@ -100,13 +101,15 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   CALL def_variables(MetOutputFile, "lon", "lon", NF90_FLOAT)
   CALL def_variables(MetOutputFile, "lat", "lat", NF90_FLOAT)
   CALL def_variables(MetOutputFile, "time", "time", NF90_INT)
-  CALL put_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
-  CALL put_dimension_data(MetOutputFile, "lat", GlobDomain%LatitudeAxis)
 
   ! Now initialise the meteorology variables
   CALL def_variables(MetOutputFile,&
-    ["Rainf", "Tair", "wind", "Psurf", "SWDown", "LWDown"],&
+    ["LWDown", "Rainf", "Tair", "wind", "Psurf", "SWDown"],&
     ["lon", "lat", "time"], NF90_FLOAT)
+
+  ! Put the dimension data
+  CALL put_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
+  CALL put_dimension_data(MetOutputFile, "lat", GlobDomain%LatitudeAxis)
 
 END SUBROUTINE prepare_meteorology
 
@@ -174,6 +177,9 @@ SUBROUTINE write_meteorology(Met, Time)
   MetStorage = NF90_FILL_REAL
 
   ! For each variable, reshape to matrix then write out
+  CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "LWDown", MetStorage)
+
   CALL from_vector_to_matrix(Met%Rain, MetStorage, ProcDomain)
   CALL put_record(MetOutputFile, "Rainf", MetStorage)
 
@@ -189,9 +195,6 @@ SUBROUTINE write_meteorology(Met, Time)
   CALL from_vector_to_matrix(Met%ShortwaveRad, MetStorage, ProcDomain)
   CALL put_record(MetOutputFile, "SWDown", MetStorage)
 
-  CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
-  CALL put_record(MetOutputFile, "LWDown", MetStorage)
-
 END SUBROUTINE write_meteorology
 
 SUBROUTINE finalise_meteorology()
@@ -201,13 +204,12 @@ SUBROUTINE finalise_meteorology()
 
   INTEGER :: Iter
 
+  CALL close_file(MetOutputFile)
+
   DO Iter = 1, NumVariables
     CALL close_reader(MetDataReaders(Iter))
   END DO
 
-  CALL close_file(MetOutputFile)
-
 END SUBROUTINE finalise_meteorology
-
 
 END MODULE meteorology_module

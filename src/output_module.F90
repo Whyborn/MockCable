@@ -77,9 +77,18 @@ MODULE output_module
     !MODULE PROCEDURE add_record_int_rank3
   END INTERFACE put_record
 
+  INTERFACE set_fill_value
+    MODULE PROCEDURE set_fill_value_real
+    MODULE PROCEDURE set_fill_value_int
+  END INTERFACE
+
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: ProcDomain
   TYPE(mpi_grp_t), PRIVATE :: mpi_grp
+  
+  ! The default fill values for each type
+  REAL :: DefaultFloatFillVal = NF90_FILL_REAL
+  INTEGER :: DefaultIntFillVal = NF90_FILL_INT
 
 CONTAINS
 
@@ -112,14 +121,23 @@ CONTAINS
     CHARACTER(LEN=*) :: FileName
     TYPE(NCFile) :: OutFile
 
+    ! Old mode argument is required for NF90_SET_FILL
+    INTEGER :: OldMode
+
 #ifdef __MPI__
+    !CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
+      !IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
+      !MPI_INFO_NULL, OutFile%FileID))
     CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
       IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
       MPI_INFO_NULL, OutFile%FileID))
 #else
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif
-
+  
+    ! Set nofill mode
+    CALL handle_ncstat(NF90_SET_FILL(OutFile%FileID, NF90_NOFILL, OldMode))
+    
     CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END FUNCTION initialise_output_file_by_name
@@ -277,10 +295,18 @@ CONTAINS
       OutFile%Variables(StartPoint + VarIter)%VarName = VarNames(VarIter)
       OutFile%Variables(StartPoint + VarIter)%DimNames = VarDims
       OutFile%Variables(StartPoint + VarIter)%DimIDs = VarDimIDs
+
+      ! Set the default fill value
+      IF (DataType == NF90_FLOAT) THEN
+        CALL set_fill_value(OutFile, VarNames(VarIter), DefaultFloatFillVal)
+      ELSEIF (DataType == NF90_INT) THEN
+        CALL set_fill_value(OutFile, VarNames(VarIter), DefaultIntFillVal)
+      END IF
+
     END DO
 
     ! Set the file back to write mode
-    !CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
+    CALL handle_ncstat(NF90_ENDDEF(OutFile%FileID))
 
   END SUBROUTINE def_variables_multiple_dims
 
@@ -440,6 +466,7 @@ CONTAINS
     ! The target variable we're writing to
     TYPE(NCVariable) :: TargetVariable
 
+    ! Check that the specified dimension is unlimited
     DO DimIter = 1, SIZE(OutFile%DimNames)
       IF (TRIM(OutFile%DimNames(DimIter)) == TRIM(DimName)) THEN
         ! Check that the corresponding dimension is unlimited
@@ -455,7 +482,6 @@ CONTAINS
     TargetVariable = get_target_variable(OutFile, DimName)
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       [DimValue], START=[OutFile%UnlimitedDimensionLength+1], COUNT=[1]))
-    WRITE(*,*) "Extended the dimension once"
 
     ! Increment the size of the unlimited dimension
     OutFile%UnlimitedDimensionLength = OutFile%UnlimitedDimensionLength + 1
@@ -497,7 +523,6 @@ CONTAINS
     TargetVariable = get_target_variable(OutFile, DimName)
     CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
       DimValue, START=[OutFile%UnlimitedDimensionLength+1]))
-    WRITE(*,*) "Extended the dimension once"
 
     ! Increment the size of the unlimited dimension
     OutFile%UnlimitedDimensionLength = OutFile%UnlimitedDimensionLength + 1
@@ -726,6 +751,50 @@ CONTAINS
 
   END SUBROUTINE put_record_int_rank2
 
+  SUBROUTINE set_fill_value_real(OutFile, VarName, FloatFillVal)
+    !*## Purpose
+    !
+    ! Set the fill value for the NCVariable.
+    !
+    !## Method
+    !
+    ! Set the fill value for the specified variable.
+
+    TYPE(NCFile), INTENT(IN) :: OutFile
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
+    REAL, INTENT(IN) :: FloatFillVal
+
+    TYPE(NCVariable) :: TargetVariable
+
+    ! Get the target variable, then assign the _FillValue attribute
+    TargetVariable = get_target_variable(OutFile, VarName)
+    CALL handle_ncstat(NF90_DEF_VAR_FILL(OutFile%FileID, TargetVariable%VarID,&
+      0, FloatFillVal))
+
+  END SUBROUTINE set_fill_value_real
+
+  SUBROUTINE set_fill_value_int(OutFile, VarName, IntFillVal)
+    !*## Purpose
+    !
+    ! Set the fill value for the NCVariable.
+    !
+    !## Method
+    !
+    ! Set the fill value for the specified variable.
+
+    TYPE(NCFile), INTENT(IN) :: OutFile
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
+    INTEGER, INTENT(IN) :: IntFillVal
+
+    TYPE(NCVariable) :: TargetVariable
+
+    ! Get the target variable, then assign the _FillValue attribute
+    TargetVariable = get_target_variable(OutFile, VarName)
+    CALL handle_ncstat(NF90_DEF_VAR_FILL(OutFile%FileID, TargetVariable%VarID,&
+      0, IntFillVal))
+
+  END SUBROUTINE set_fill_value_int
+      
   FUNCTION get_target_variable(OutFile, VarName) RESULT(TargetVariable)
     !*## Purpose
     !
@@ -741,14 +810,24 @@ CONTAINS
     TYPE(NCVariable) :: TargetVariable
     
     INTEGER :: VarIter
+    LOGICAL :: FoundVariable
+
+    ! Checker to make sure the operation was a success
+    FoundVariable = .FALSE.
 
     ! Get the relevant variable
     DO VarIter = 1, SIZE(OutFile%Variables)
       IF (OutFile%Variables(VarIter)%VarName == VarName) THEN
         TargetVariable = OutFile%Variables(VarIter)
+        FoundVariable = .TRUE.
         EXIT
       END IF
     END DO
+
+    IF (.NOT. FoundVariable) THEN
+      WRITE(ERROR_UNIT,*) "Search for variable "//VarName//" failed."
+      CALL mpi_grp%abort() 
+    END IF
 
   END FUNCTION get_target_variable
 
