@@ -177,9 +177,6 @@ SUBROUTINE write_meteorology(Met, Time)
   MetStorage = NF90_FILL_REAL
 
   ! For each variable, reshape to matrix then write out
-  CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
-  CALL put_record(MetOutputFile, "LWDown", MetStorage)
-
   CALL from_vector_to_matrix(Met%Rain, MetStorage, ProcDomain)
   CALL put_record(MetOutputFile, "Rainf", MetStorage)
 
@@ -194,6 +191,9 @@ SUBROUTINE write_meteorology(Met, Time)
 
   CALL from_vector_to_matrix(Met%ShortwaveRad, MetStorage, ProcDomain)
   CALL put_record(MetOutputFile, "SWDown", MetStorage)
+
+  CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
+  CALL put_record(MetOutputFile, "LWDown", MetStorage)
 
 END SUBROUTINE write_meteorology
 
