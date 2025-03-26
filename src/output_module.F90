@@ -1,6 +1,5 @@
 MODULE output_module
 
-  USE mpi
   USE netcdf
   USE iso_fortran_env, ONLY: ERROR_UNIT
   USE common_module, ONLY: handle_ncstat

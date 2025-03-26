@@ -68,14 +68,14 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   READ(nmlUnit, NML=metnml)
   CLOSE(nmlUnit)
 
+  ! Grab a local copy of the process and global domain
+  ProcDomain = ProcDomainIn
+  GlobDomain = GlobDomainIn
+
   ! Allocate memory for the readers
   NPoints = SIZE(ProcDomain%LongitudeIDs)
   ALLOCATE(Met%Rain(NPoints), Met%Temperature(NPoints), Met%Wind(NPoints),&
     Met%Pressure(NPoints), Met%ShortwaveRad(NPoints), Met%LongwaveRad(NPoints))
-
-  ! Grab a local copy of the process and global domain
-  ProcDomain = ProcDomainIn
-  GlobDomain = GlobDomainIn
 
   ! Initialise the dataset readers
   MetDataReaders(RainID) = initialise_datasetreader_at_timestep(&

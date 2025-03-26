@@ -10,7 +10,7 @@ EOF
 
 . /etc/bashrc
 
-cmake_args=(-DCMAKE_Fortran_COMPILER=mpif90 -DMOCK_CABLE_MPI="OFF")
+cmake_args=(-DMOCK_CABLE_MPI="OFF")
 mpi=0
 
 # Argument parsing adapted and stolen from http://mywiki.wooledge.org/BashFAQ/035#Complex_nonstandard_add-on_utilities
@@ -34,6 +34,7 @@ module load cmake/3.24.2 intel-compiler-llvm/2025.0.4
 
 if [ ${mpi} -eq 1 ]; then
    module load openmpi/4.1.3 netcdf/4.8.0p
+   cmake_args+=(-DCMAKE_Fortran_COMPILER=mpif90)
 else
    module load netcdf/4.8.0
 fi

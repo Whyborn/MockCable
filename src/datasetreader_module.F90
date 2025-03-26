@@ -1,7 +1,6 @@
 MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
-USE mpi
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf
 USE domain_module, ONLY: ProcessDomain
@@ -477,7 +476,7 @@ SUBROUTINE get_data(Reader, Year, TimeIndex)
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
   ! Iterator, status checker and index in relevant file
-  INTEGER :: FileIndex = 0, ok, IndexInDataset, IndexInFile
+  INTEGER :: FileIndex, ok, IndexInDataset, IndexInFile
 
   ! Bracketing tools
   INTEGER :: LowerBound, UpperBound, Middle

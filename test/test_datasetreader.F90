@@ -44,6 +44,8 @@ PROGRAM test_datasetreader
 
   WRITE(*,*) "Selected file index:", FileIndex, " with index:", IndexInFile
 
+  CALL get_data(Reader, 1960, 200)
+
   CALL mpi_mod_end()
 
 END PROGRAM test_datasetreader
