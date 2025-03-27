@@ -1,11 +1,8 @@
 MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
-USE mpi
 USE mpi_module, ONLY: mpi_grp_t
-USE netcdf, ONLY: NF90_GET_ATT, NF90_GET_VAR, NF90_OPEN, NF90_INQ_VARID,&
-                  NF90_INQ_DIMID, NF90_INQUIRE_DIMENSION, NF90_NOERR,&
-                  NF90_NOWRITE
+USE netcdf
 USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, add_to_date, days_since,&
@@ -43,7 +40,7 @@ TYPE DatasetReader
   CHARACTER(LEN=10), DIMENSION(:), ALLOCATABLE :: VarNames
 
   ! ID for the current file and variable
-  INTEGER :: CurrentFileID, CurrentVarID, CurrentFileIndex
+  INTEGER :: CurrentFileID = -1, CurrentVarID, CurrentFileIndex
 
   ! MPI information
   TYPE(mpi_grp_t) :: mpi_grp
@@ -400,19 +397,25 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   !
   !## Method
   !
-  ! Use NetCDF routines to acquire a new ID associated with the fi994a3c7le at the
+  ! Use NetCDF routines to acquire a new ID associated with the file at the
   ! given index.
 
   INTEGER, INTENT(IN) :: FileIndex
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
-  ! Status checker
-  INTEGER :: ok
+  ! Close the old reader
+  IF (Reader%CurrentFileID /= -1) THEN
+    CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+  END IF
 
 #ifdef __MPI__
-  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
-    Reader%CurrentFileID, COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
+  !CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
+    !IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
+    !COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
+  CALL handle_ncstat(NF90_OPEN_PAR(Reader%DatasetFiles(FileIndex),&
+    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%mpi_grp%comm,&
+    MPI_INFO_NULL, Reader%CurrentFileID))
 #else
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
     Reader%CurrentFileID))
@@ -420,6 +423,12 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
 
   Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)
   Reader%CurrentFileIndex = FileIndex
+
+  ! Set the variable to parallel access if MPI
+#ifdef __MPI__
+  CALL handle_ncstat(NF90_VAR_PAR_ACCESS(Reader%CurrentFileID,&
+    Reader%CurrentVarID, NF90_COLLECTIVE))
+#endif
 
 END SUBROUTINE open_new_file_in_reader
 
@@ -467,7 +476,7 @@ SUBROUTINE get_data(Reader, Year, TimeIndex)
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
   ! Iterator, status checker and index in relevant file
-  INTEGER :: FileIndex = 0, ok, IndexInDataset, IndexInFile
+  INTEGER :: FileIndex, ok, IndexInDataset, IndexInFile
 
   ! Bracketing tools
   INTEGER :: LowerBound, UpperBound, Middle
@@ -527,5 +536,16 @@ SUBROUTINE select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
 
   IndexInFile = IndexInDataset - Reader%IndexRange(FileIndex) + 1
 END SUBROUTINE select_file
+
+SUBROUTINE close_reader(Reader)
+  !*## Purpose
+  !
+  ! Close down the reader at end of use
+
+  TYPE(DatasetReader), INTENT(IN) :: Reader
+
+  CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+
+END SUBROUTINE close_reader
 
 END MODULE datasetreader_module
