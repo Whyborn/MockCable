@@ -1,6 +1,7 @@
 MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
+USE mpi, ONLY: MPI_INFO_NULL
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf
 USE domain_module, ONLY: ProcessDomain
