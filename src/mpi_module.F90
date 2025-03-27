@@ -5,7 +5,7 @@
 MODULE mpi_module
   !! Module for handling some common MPI operations and MPI groups
 #ifdef __MPI__
-  USE mpi
+  USE mpi_f08
 #endif
   USE iso_fortran_env, ONLY : error_unit
   IMPLICIT NONE
@@ -17,15 +17,15 @@ MODULE mpi_module
     mpi_mod_end, &
     mpi_check_error
 
-  INTEGER, PARAMETER :: MPI_COMM_UNDEFINED = -1
+  TYPE(MPI_COMM), PARAMETER :: MPI_COMM_UNDEFINED = MPI_COMM_NULL
 
-  INTEGER :: default_comm ! Default communicator to use when creating groups
+  TYPE(MPI_COMM) :: default_comm ! Default communicator to use when creating groups
 
   TYPE mpi_grp_t
     !* Class to handle MPI groups.
     ! This class stores information about the group and
     ! the current proccess.
-    INTEGER :: comm = MPI_COMM_UNDEFINED  !! Communicator
+    TYPE(MPI_COMM) :: comm = MPI_COMM_UNDEFINED  !! Communicator
     INTEGER :: rank = -1   !! Rank of the current process
     INTEGER :: size = -1   !! Size of the communicator
   CONTAINS
@@ -79,7 +79,7 @@ CONTAINS
     !
     ! Note that when the undefined communicator is used, the group size is 1 and
     ! the rank to 0, such that the code can work in serial mode.
-    INTEGER, INTENT(IN), OPTIONAL :: comm !! MPI communicator
+    TYPE(MPI_COMM), INTENT(IN), OPTIONAL :: comm !! MPI communicator
     TYPE(mpi_grp_t) :: mpi_grp
 
     INTEGER :: ierr
