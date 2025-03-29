@@ -7,6 +7,7 @@ MODULE mpi_module
 #ifdef __MPI__
   USE mpi_f08
 #endif
+  USE mpi_serial_stub_module
   USE iso_fortran_env, ONLY : error_unit
   IMPLICIT NONE
 
