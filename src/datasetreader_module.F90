@@ -1,7 +1,9 @@
 MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
-USE mpi, ONLY: MPI_INFO_NULL
+#ifdef __MPI__
+  USE mpi_f08, ONLY: MPI_INFO_NULL
+#endif
 USE mpi_module, ONLY: mpi_grp_t
 USE netcdf
 USE domain_module, ONLY: ProcessDomain
@@ -415,8 +417,8 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
     !IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
     !COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
   CALL handle_ncstat(NF90_OPEN_PAR(Reader%DatasetFiles(FileIndex),&
-    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%mpi_grp%comm,&
-    MPI_INFO_NULL, Reader%CurrentFileID))
+    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%mpi_grp%comm%MPI_Val,&
+    MPI_INFO_NULL%MPI_Val, Reader%CurrentFileID))
 #else
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
     Reader%CurrentFileID))

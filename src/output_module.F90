@@ -1,8 +1,10 @@
 MODULE output_module
 
-  USE netcdf
-  USE mpi, ONLY: MPI_INFO_NULL
   USE iso_fortran_env, ONLY: ERROR_UNIT
+#ifdef __MPI__
+  USE mpi_f08, ONLY: MPI_INFO_NULL
+#endif
+  USE netcdf
   USE common_module, ONLY: handle_ncstat
   USE mpi_module, ONLY: mpi_grp_t
   USE domain_module, ONLY: ProcessDomain, GlobalDomain
@@ -129,8 +131,8 @@ CONTAINS
       !IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
       !MPI_INFO_NULL, OutFile%FileID))
     CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
-      IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
-      MPI_INFO_NULL, OutFile%FileID))
+      IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm%MPI_Val,&
+      MPI_INFO_NULL%MPI_Val, OutFile%FileID))
 #else
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif

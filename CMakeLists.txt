@@ -26,6 +26,7 @@ add_library(
     src/mpi_module.F90
     src/domain_module.F90
     src/output_module.F90
+    src/mpi_serial_stub_module.F90
 )
 
 if(MOCK_CABLE_MPI)
