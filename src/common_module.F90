@@ -34,14 +34,13 @@ SUBROUTINE sort_int(IntArray, Indexer)
 
   INTEGER, DIMENSION(:), INTENT(INOUT) :: IntArray
   
-  INTEGER, DIMENSION(:), ALLOCATABLE, INTENT(OUT), OPTIONAL :: Indexer
+  INTEGER, DIMENSION(:), INTENT(OUT), OPTIONAL :: Indexer
 
   ! Indexers and temporary storage values
   INTEGER :: i, j, tmp
 
   ! Fill the indexer with the 1:N, if required
   IF (PRESENT(Indexer)) THEN
-    ALLOCATE(Indexer(SIZE(IntArray)))
     Indexer = [(i, i = 1, SIZE(IntArray))]
   END IF
 
@@ -74,12 +73,13 @@ SUBROUTINE sort_real(RealArray, Indexer)
   ! in place. Optionally also returns the indexer which can be used to map other
   ! arrays to the same order.
 
-  REAL, DIMENSION(:), ALLOCATABLE, INTENT(INOUT) :: RealArray
+  REAL, DIMENSION(:), INTENT(INOUT) :: RealArray
   
-  INTEGER, DIMENSION(:), ALLOCATABLE, INTENT(OUT), OPTIONAL :: Indexer
+  INTEGER, DIMENSION(:), INTENT(OUT), OPTIONAL :: Indexer
 
   ! Indexers and temporary storage values
-  INTEGER :: i, j, tmp
+  INTEGER :: i, j
+  REAL :: tmp
 
   ! Fill the indexer with the 1:N, if required
   IF (PRESENT(Indexer)) THEN
@@ -167,13 +167,17 @@ FUNCTION approx_equal(LHS, RHS, Tolerance) RESULT(IsEqual)
   REAL, OPTIONAL :: Tolerance
   LOGICAL :: IsEqual
 
+  REAL :: LocalTolerance
+
   ! Set a default value for the tolerance if it is not already set
   IF (.NOT. PRESENT(Tolerance)) THEN
-    Tolerance = 1e-8
+    LocalTolerance = 1.0e-4
+  ELSE
+    LocalTolerance = Tolerance
   END IF
 
   ! Check the delta
-  IF (ABS(RHS - LHS) <= Tolerance) THEN
+  IF (ABS(RHS - LHS) <= LocalTolerance) THEN
     IsEqual = .TRUE.
   ELSE
     IsEqual = .FALSE.
