@@ -15,6 +15,15 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
 
+include(FetchContent)
+FetchContent_Declare(
+    Fortuno
+    Fortuno
+    GIT_REPOSITORY "https://github.com/fortuno-repos/fortuno"
+    GIT_TAG "main"
+)
+FetchContent_MakeAvailable(Fortuno)
+
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
     add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
@@ -42,8 +51,13 @@ if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
 endif()
 
+#add_executable(
+    #test-common
+    #test/test_common.F90
+#)
 add_executable(
-    test-common
+    mock-tests
+    test/mock_tests.F90
     test/test_common.F90
 )
 
@@ -67,14 +81,18 @@ add_executable(
     test/simple4by4.F90
 )
 
-target_link_libraries(test-common PRIVATE common)
-# target_link_libraries(test-output PRIVATE common)
-# target_link_libraries(test-datasetreader PRIVATE common)
+#target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
+target_link_libraries(mock-tests PRIVATE common Fortuno::fortuno_serial)
+#target_link_libraries(test-output PRIVATE common)
+#target_link_libraries(test-datasetreader PRIVATE common)
 target_link_libraries(mock-cable PRIVATE common)
 target_link_libraries(simple4by4 PRIVATE common)
 
-install(TARGETS test-common RUNTIME)
-# install(TARGETS test-output RUNTIME)
-# install(TARGETS test-datasetreader RUNTIME)
+#install(TARGETS test-common RUNTIME)
+install(TARGETS mock-tests RUNTIME)
+add_test(NAME run-mock-tests COMMAND mock-tests)
+#install(TARGETS test-common RUNTIME)
+#install(TARGETS test-output RUNTIME)
+#install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
