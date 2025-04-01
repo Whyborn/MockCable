@@ -15,6 +15,15 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
 
+include(FetchContent)
+FetchContent_Declare(
+    Fortuno
+    Fortuno
+    GIT_REPOSITORY "https://github.com/fortuno-repos/fortuno"
+    GIT_TAG "main"
+)
+FetchContent_MakeAvailable(Fortuno)
+
 set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
 add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
 add_library(
@@ -34,8 +43,13 @@ if(MOCK_CABLE_MPI)
     target_link_libraries(common PRIVATE MPI::MPI_Fortran)
 endif()
 
+#add_executable(
+    #test-common
+    #test/test_common.F90
+#)
 add_executable(
-    test-common
+    mock-tests
+    test/mock_tests.F90
     test/test_common.F90
 )
 
@@ -54,7 +68,8 @@ add_executable(
     src/mock_cable.F90
 )
 
-target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
+#target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
+target_link_libraries(mock-tests PRIVATE common Fortuno::fortuno_serial PkgConfig::NETCDF)
 target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF)
@@ -66,7 +81,9 @@ if(MOCK_CABLE_MPI)
     target_link_libraries(mock-cable PRIVATE MPI::MPI_Fortran)
 endif()
 
-install(TARGETS test-common RUNTIME)
+install(TARGETS mock-tests RUNTIME)
+add_test(NAME run-mock-tests COMMAND mock-tests)
+#install(TARGETS test-common RUNTIME)
 install(TARGETS test-output RUNTIME)
 install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
