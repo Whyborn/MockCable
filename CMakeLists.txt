@@ -23,6 +23,7 @@ FetchContent_Declare(
     GIT_TAG "main"
 )
 FetchContent_MakeAvailable(Fortuno)
+enable_testing()
 
 set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
 add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
