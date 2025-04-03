@@ -5,10 +5,10 @@ USE netcdf
 USE datasetreader_module, ONLY: DatasetReader,&
   initialise_datasetreader_at_timestep, get_data, close_reader
 USE common_module, ONLY: handle_ncstat
-USE domain_module, ONLY: ProcessDomain, GlobalDomain, from_matrix_to_vector,&
-  from_vector_to_matrix
+USE domain_module, ONLY: ProcessDomain, GlobalDomain
 USE output_module, ONLY: NCFile, initialise_output_file, def_variables,&
   put_dimension_data, extend_unlimited_dimension, put_record, close_file
+use partition_mod, only: get_n_land, transform_grid_to_land, transform_land_to_grid
 
 IMPLICIT NONE
 
@@ -73,7 +73,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   GlobDomain = GlobDomainIn
 
   ! Allocate memory for the readers
-  NPoints = SIZE(ProcDomain%LongitudeIDs)
+  NPoints = get_n_land(mpi_grp)
   ALLOCATE(Met%Rain(NPoints), Met%Temperature(NPoints), Met%Wind(NPoints),&
     Met%Pressure(NPoints), Met%ShortwaveRad(NPoints), Met%LongwaveRad(NPoints))
 
@@ -93,7 +93,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
 
   ! Create the file to write the output to
   MetOutputFile = initialise_output_file(&
-    "/scratch/rp23/lw5085/meteorology_output.nc",&
+    "meteorology_output.nc",&
     ["lon", "lat", "time"], [SIZE(GlobDomain%LongitudeAxis),&
     SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED])
   
@@ -104,7 +104,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
 
   ! Now initialise the meteorology variables
   CALL def_variables(MetOutputFile,&
-    ["LWDown", "Rainf", "Tair", "wind", "Psurf", "SWDown"],&
+    ["LWdown", "Rainf", "Tair", "wind", "Psurf", "SWdown"],&
     ["lon", "lat", "time"], NF90_FLOAT)
 
   ! Put the dimension data
@@ -113,7 +113,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
 
 END SUBROUTINE prepare_meteorology
 
-SUBROUTINE get_meteorology(Year, Timestep, Met)
+SUBROUTINE get_meteorology(mpi_grp, Year, Timestep, Met)
   !*## Purpose
   !
   ! Apply the meteorology from a given year and timestep.
@@ -124,6 +124,7 @@ SUBROUTINE get_meteorology(Year, Timestep, Met)
   ! appropriate record from the dataset. Extract the required elements from the
   ! record based off the landmask.
 
+  type(mpi_grp_t), intent(in) :: mpi_grp
   INTEGER, INTENT(IN) :: Year, Timestep
   TYPE(MetType), INTENT(INOUT) :: Met
 
@@ -136,22 +137,16 @@ SUBROUTINE get_meteorology(Year, Timestep, Met)
   END DO
 
   ! Move the data from the 2D matrices to the 1D vectors
-  CALL from_matrix_to_vector(MetDataReaders(RainID)%DataStorage,&
-    Met%Rain, ProcDomain)
-  CALL from_matrix_to_vector(MetDataReaders(PressureID)%DataStorage,&
-    Met%Pressure, ProcDomain)
-  CALL from_matrix_to_vector(MetDataReaders(TemperatureID)%DataStorage,&
-    Met%Temperature, ProcDomain)
-  CALL from_matrix_to_vector(MetDataReaders(WindID)%DataStorage,&
-    Met%Wind, ProcDomain)
-  CALL from_matrix_to_vector(MetDataReaders(ShortwaveRadID)%DataStorage,&
-    Met%ShortwaveRad, ProcDomain)
-  CALL from_matrix_to_vector(MetDataReaders(LongwaveRadID)%DataStorage,&
-    Met%LongwaveRad, ProcDomain)
+  CALL transform_grid_to_land(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, MetDataReaders(RainID)%DataStorage, Met%Rain)
+  CALL transform_grid_to_land(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, MetDataReaders(PressureID)%DataStorage, Met%Pressure)
+  CALL transform_grid_to_land(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, MetDataReaders(TemperatureID)%DataStorage, Met%Temperature)
+  CALL transform_grid_to_land(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, MetDataReaders(WindID)%DataStorage, Met%Wind)
+  CALL transform_grid_to_land(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, MetDataReaders(ShortwaveRadID)%DataStorage, Met%ShortwaveRad)
+  CALL transform_grid_to_land(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, MetDataReaders(LongwaveRadID)%DataStorage, Met%LongwaveRad)
 
 END SUBROUTINE get_meteorology
 
-SUBROUTINE write_meteorology(Met, Time)
+SUBROUTINE write_meteorology(mpi_grp, Met, Time)
   !*## Purpose
   !
   ! Write out the meteorology data back in matrix format
@@ -161,6 +156,7 @@ SUBROUTINE write_meteorology(Met, Time)
   ! Convert the vectorised meteorology to a matrix, then write it to the file
   ! using the NCFile interface.
 
+  type(mpi_grp_t), intent(in) :: mpi_grp
   TYPE(MetType), INTENT(IN) :: Met
   INTEGER, INTENT(IN) :: Time
 
@@ -177,23 +173,23 @@ SUBROUTINE write_meteorology(Met, Time)
   MetStorage = NF90_FILL_REAL
 
   ! For each variable, reshape to matrix then write out
-  CALL from_vector_to_matrix(Met%Rain, MetStorage, ProcDomain)
+  call transform_land_to_grid(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, Met%Rain, MetStorage, fill_value=NF90_FILL_REAL)
   CALL put_record(MetOutputFile, "Rainf", MetStorage)
 
-  CALL from_vector_to_matrix(Met%Temperature, MetStorage, ProcDomain)
+  call transform_land_to_grid(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, Met%Temperature, MetStorage, fill_value=NF90_FILL_REAL)
   CALL put_record(MetOutputFile, "Tair", MetStorage)
 
-  CALL from_vector_to_matrix(Met%Wind, MetStorage, ProcDomain)
+  call transform_land_to_grid(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, Met%Wind, MetStorage, fill_value=NF90_FILL_REAL)
   CALL put_record(MetOutputFile, "wind", MetStorage)
 
-  CALL from_vector_to_matrix(Met%Pressure, MetStorage, ProcDomain)
+  call transform_land_to_grid(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, Met%Pressure, MetStorage, fill_value=NF90_FILL_REAL)
   CALL put_record(MetOutputFile, "Psurf", MetStorage)
 
-  CALL from_vector_to_matrix(Met%ShortwaveRad, MetStorage, ProcDomain)
-  CALL put_record(MetOutputFile, "SWDown", MetStorage)
+  call transform_land_to_grid(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, Met%ShortwaveRad, MetStorage, fill_value=NF90_FILL_REAL)
+  CALL put_record(MetOutputFile, "SWdown", MetStorage)
 
-  CALL from_vector_to_matrix(Met%LongwaveRad, MetStorage, ProcDomain)
-  CALL put_record(MetOutputFile, "LWDown", MetStorage)
+  call transform_land_to_grid(mpi_grp, ProcDomain%ProcessDomainStart, ProcDomain%ProcessDomainSize, Met%LongwaveRad, MetStorage, fill_value=NF90_FILL_REAL)
+  CALL put_record(MetOutputFile, "LWdown", MetStorage)
 
 END SUBROUTINE write_meteorology
 

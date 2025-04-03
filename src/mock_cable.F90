@@ -7,6 +7,7 @@ PROGRAM mock_cable
     write_meteorology, finalise_meteorology
   USE output_module, ONLY: initialise_output_module
   USE domain_module, ONLY: process_landmask, ProcessDomain, GlobalDomain
+  use partition_mod, only: partition_mod_init, partition_mod_end
 
   IMPLICIT NONE
 
@@ -32,6 +33,8 @@ PROGRAM mock_cable
   ! Initialise the domain
   CALL process_landmask(LandmaskFile, ProcDomain, GlobDomain, mpi_grp)
 
+  ! call partition_mod_init(GlobDomain%GlobalLandmask, mpi_grp)
+
   ! Initialise the output module with the MPI/process information
   CALL initialise_output_module(ProcDomain, mpi_grp)
 
@@ -45,11 +48,13 @@ PROGRAM mock_cable
     ! Compute number of steps in the year
     StepsInYear = (days_in_year(Year) * SecsInDay) / Dt
     DO TimeStep = 1, StepsInYear
-      CALL get_meteorology(Year, TimeStep, Met)
-      CALL write_meteorology(Met, TimeStep)
+      CALL get_meteorology(mpi_grp, Year, TimeStep, Met)
+      CALL write_meteorology(mpi_grp, Met, TimeStep)
     END DO
   END DO
+
   ! Close everything down
+  call partition_mod_end()
   CALL finalise_meteorology()
   CALL mpi_mod_end()
   

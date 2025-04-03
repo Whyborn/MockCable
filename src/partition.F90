@@ -14,6 +14,7 @@ module partition_mod
     transform_grid_to_land, &
     transform_land_to_grid, &
     get_n_land, &
+    land_index_local_to_ij_global, &
     get_grid_partition_index, &
     get_grid_partition_start_count, &
     rectangular_partitioning
@@ -418,5 +419,16 @@ contains
     integer :: land_index_start, land_index_count
     call get_partition_start_count(n_land, mpi_grp%size, mpi_grp%rank, land_index_start, land_index_count)
   end function get_n_land
+
+  subroutine land_index_local_to_ij_global(mpi_grp, land_index, i_global, j_global)
+    type(mpi_grp_t), intent(in) :: mpi_grp
+    integer, intent(in) :: land_index
+    integer, intent(out) :: i_global, j_global
+    integer :: land_index_start, land_index_count, land_index_global, grid_index_global
+    call get_partition_start_count(n_land, mpi_grp%size, mpi_grp%rank, land_index_start, land_index_count)
+    land_index_global = land_index_start + land_index - 1
+    grid_index_global = land_index_to_grid_index(land_index_global)
+    call grid_index_to_ij(grid_index_global, grid_shape_global, i_global, j_global)
+  end subroutine land_index_local_to_ij_global
 
 end module partition_mod
