@@ -37,9 +37,9 @@ module partition_mod
     !! Enable rectangular partitioning of spatial grid, otherwise sliced partitioning is used.
 
   integer, dimension(:), allocatable :: grid_index_to_land_index
-    !! Array of indexes (memory offsets) in the global grid for each land point index
-  integer, dimension(:), allocatable :: land_index_to_grid_index
     !! Array of indexes in the global land vector for each grid point index (memory offset)
+  integer, dimension(:), allocatable :: land_index_to_grid_index
+    !! Array of indexes (memory offsets) in the global grid for each land point index
   integer, dimension(:), allocatable :: grid_partition_land_index_start
     !! Array of starting indexes in the global land vector for each grid partition
   integer, dimension(:), allocatable :: grid_partition_land_index_count
@@ -155,7 +155,8 @@ contains
   subroutine transform_grid_to_land(mpi_grp, grid_partition_start, grid_partition_count, grid_input, land_output)
     !! Perform grid to land partition transfer.
     type(mpi_grp_t), intent(in) :: mpi_grp !! MPI group
-    integer, dimension(2), intent(in) :: grid_partition_start, grid_partition_count
+    integer, dimension(2), intent(in) :: grid_partition_start !! 2D start indexes of grid partition
+    integer, dimension(2), intent(in) :: grid_partition_count !! 2D counts of grid partition
     real, dimension(:, :), allocatable, intent(in) :: grid_input !! Input grid
     real, dimension(:), allocatable, intent(out) :: land_output !! Output land vector
 
@@ -198,10 +199,11 @@ contains
 
   subroutine transform_land_to_grid(mpi_grp, grid_partition_start, grid_partition_count, land_input, grid_output, fill_value)
     !! Perform grid to land partition transfer.
-    type(mpi_grp_t), intent(in) :: mpi_grp
-    integer, dimension(2), intent(in) :: grid_partition_start, grid_partition_count
-    real, dimension(:), allocatable, intent(in) :: land_input
-    real, dimension(:,:), allocatable, intent(out) :: grid_output
+    type(mpi_grp_t), intent(in) :: mpi_grp !! MPI group
+    integer, dimension(2), intent(in) :: grid_partition_start !! 2D start indexes of grid partition
+    integer, dimension(2), intent(in) :: grid_partition_count !! 2D counts of grid partition
+    real, dimension(:), allocatable, intent(in) :: land_input !! Input land vector
+    real, dimension(:,:), allocatable, intent(out) :: grid_output !! Output grid
     real, optional :: fill_value
 
     real, dimension(:), allocatable :: buffer_recv_land_to_grid
