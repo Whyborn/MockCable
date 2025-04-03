@@ -66,14 +66,14 @@ SUBROUTINE test_put_data(ProcDomainLoc, mpi_grp_loc)
   INTEGER, DIMENSION(:,:), ALLOCATABLE :: DummyDataSpace, DummyDataRecord
   INTEGER :: t
 
-  TestNCFile = initialise_output_file("TestOutput.nc", ["lon", "lat", "time"],&
+  TestNCFile = initialise_output_file("TestOutput.nc", ["lon ", "lat ", "time"],&
     [4, 4, NF90_UNLIMITED])
 
   CALL def_variables(TestNCFile, "lon", "lon", NF90_INT)
   CALL def_variables(TestNCFile, "lat", "lat", NF90_INT)
   CALL def_variables(TestNCFile, "time", ["time"], NF90_INT)
   CALL def_variables(TestNCFile, "procs", ["lon", "lat"], NF90_INT)
-  CALL def_variables(TestNCFile, "procstime", ["lon", "lat", "time"], NF90_INT)
+  CALL def_variables(TestNCFile, "procstime", ["lon ", "lat ", "time"], NF90_INT)
 
   CALL put_dimension_data(TestNCFile, "lon", [1, 2, 3, 4])
   CALL put_dimension_data(TestNCFile, "lat", [1, 2, 3, 4])

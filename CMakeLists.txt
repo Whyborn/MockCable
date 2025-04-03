@@ -15,8 +15,15 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
 
-set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
-add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
+    add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
+endif()
+
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
+endif()
+
 add_library(
     common
     src/common_module.F90

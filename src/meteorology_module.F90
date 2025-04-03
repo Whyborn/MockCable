@@ -94,7 +94,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   ! Create the file to write the output to
   MetOutputFile = initialise_output_file(&
     "meteorology_output.nc",&
-    ["lon", "lat", "time"], [SIZE(GlobDomain%LongitudeAxis),&
+    ["lon ", "lat ", "time"], [SIZE(GlobDomain%LongitudeAxis),&
     SIZE(GlobDomain%LatitudeAxis), NF90_UNLIMITED])
   
   ! Set the longitude/latitude axes
@@ -104,8 +104,8 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
 
   ! Now initialise the meteorology variables
   CALL def_variables(MetOutputFile,&
-    ["LWdown", "Rainf", "Tair", "wind", "Psurf", "SWdown"],&
-    ["lon", "lat", "time"], NF90_FLOAT)
+    ["LWdown", "Rainf ", "Tair  ", "wind  ", "Psurf ", "SWdown"],&
+    ["lon ", "lat ", "time"], NF90_FLOAT)
 
   ! Put the dimension data
   CALL put_dimension_data(MetOutputFile, "lon", GlobDomain%LongitudeAxis)
