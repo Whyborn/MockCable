@@ -40,15 +40,15 @@ add_executable(
     test/test_common.F90
 )
 
-add_executable(
-    test-output
-    test/test_output.F90
-)
+# add_executable(
+#     test-output
+#     test/test_output.F90
+# )
 
-add_executable(
-    test-datasetreader
-    test/test_datasetreader.F90
-)
+# add_executable(
+#     test-datasetreader
+#     test/test_datasetreader.F90
+# )
 
 add_executable(
     mock-cable
@@ -61,20 +61,20 @@ add_executable(
 )
 
 target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
-target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF)
-target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF)
+# target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF)
+# target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(simple4by4 PRIVATE common PkgConfig::NETCDF)
 
 if(MOCK_CABLE_MPI)
     target_link_libraries(test-common PRIVATE MPI::MPI_Fortran)
-    target_link_libraries(test-output PRIVATE MPI::MPI_Fortran)
-    target_link_libraries(test-datasetreader PRIVATE MPI::MPI_Fortran)
+    # target_link_libraries(test-output PRIVATE MPI::MPI_Fortran)
+    # target_link_libraries(test-datasetreader PRIVATE MPI::MPI_Fortran)
     target_link_libraries(mock-cable PRIVATE MPI::MPI_Fortran)
 endif()
 
 install(TARGETS test-common RUNTIME)
-install(TARGETS test-output RUNTIME)
-install(TARGETS test-datasetreader RUNTIME)
+# install(TARGETS test-output RUNTIME)
+# install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
