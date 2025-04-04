@@ -91,9 +91,18 @@ target_link_libraries(simple4by4 PRIVATE common)
 
 #install(TARGETS test-common RUNTIME)
 install(TARGETS mock-tests RUNTIME)
-add_test(NAME run-mock-tests COMMAND mock-tests)
 #install(TARGETS test-common RUNTIME)
 #install(TARGETS test-output RUNTIME)
 #install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
+
+# Register tests
+foreach (test IN ITEMS
+    "common/test_sort"
+    "common/test_approx_equal"
+    )
+    add_test(NAME ${test}
+      COMMAND $<TARGET_FILE:mock-tests> ${test}
+  )
+endforeach ()
