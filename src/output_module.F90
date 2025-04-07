@@ -127,14 +127,12 @@ CONTAINS
     INTEGER :: OldMode
 
 #ifdef __MPI__
-    !CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
-      !IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
-      !MPI_INFO_NULL, OutFile%FileID))
-    CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
-      IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm%MPI_Val,&
-      MPI_INFO_NULL%MPI_Val, OutFile%FileID))
+    CALL handle_ncstat(NF90_CREATE(FileName,&
+      IOR(NF90_CLOBBER, NF90_NETCDF4), OutFile%FileID,&
+      comm=mpi_grp%comm%MPI_Val, info=MPI_INFO_NULL%MPI_Val))
 #else
-    CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
+    CALL handle_ncstat(NF90_CREATE(FileName,&
+      ior(NF90_CLOBBER, NF90_NETCDF4), OutFile%FileID))
 #endif
   
     ! Set nofill mode
