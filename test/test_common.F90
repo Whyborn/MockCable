@@ -1,6 +1,6 @@
 MODULE common_tests
   
-  USE fortuno_serial, ONLY: CHECK => SERIAL_CHECK
+  USE fortuno_interface_m, ONLY: CHECK, test_list, suite
   USE common_module, ONLY: sort, approx_equal,&
     find_largest_element_less_than_sorted
 

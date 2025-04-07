@@ -16,13 +16,25 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
 
 include(FetchContent)
-FetchContent_Declare(
-    Fortuno
-    Fortuno
-    GIT_REPOSITORY "https://github.com/fortuno-repos/fortuno"
-    GIT_TAG "main"
-)
-FetchContent_MakeAvailable(Fortuno)
+if (MOCK_CABLE_MPI)
+    option(FORTUNO_WITH_MPI "Fortuno: whether to build the MPI interface" ON)
+    FetchContent_Declare(
+        FortunoMPI
+        GIT_REPOSITORY https://github.com/fortuno-repos/fortuno
+        GIT_TAG main
+    )
+    FetchContent_MakeAvailable(FortunoMPI)
+    set(fortuno_libs Fortuno::fortuno_mpi)
+else ()
+    option(FORTUNO_WITH_MPI "Fortuno: whether to build the MPI interface" OFF)
+    FetchContent_Declare(Fortuno
+        GIT_REPOSITORY https://github.com/fortuno-repos/fortuno
+        GIT_TAG main
+        FIND_PACKAGE_ARGS CONFIG
+    )
+    FetchContent_MakeAvailable(Fortuno)
+    set(fortuno_libs Fortuno::fortuno_serial)
+endif ()
 enable_testing()
 
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
@@ -61,6 +73,12 @@ add_executable(
     test/mock_tests.F90
     test/test_common.F90
 )
+if (MOCK_CABLE_MPI)
+  target_sources(mock-tests PRIVATE test/fortuno_interface_mpi.f90)
+else()
+  target_sources(mock-tests PRIVATE test/fortuno_interface_serial.f90)
+endif()
+
 
 # add_executable(
 #     test-output
@@ -83,11 +101,13 @@ add_executable(
 )
 
 #target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
-target_link_libraries(mock-tests PRIVATE common Fortuno::fortuno_serial)
+target_link_libraries(mock-tests PRIVATE common ${fortuno_libs})
 #target_link_libraries(test-output PRIVATE common)
 #target_link_libraries(test-datasetreader PRIVATE common)
 target_link_libraries(mock-cable PRIVATE common)
 target_link_libraries(simple4by4 PRIVATE common)
+
+#target_link_libraries(mock-tests PRIVATE common ${fortuno_libs} $<$<BOOL:${MPI}>:MPI::MPI_Fortran> PkgConfig::NETCDF)
 
 #install(TARGETS test-common RUNTIME)
 install(TARGETS mock-tests RUNTIME)
@@ -102,7 +122,14 @@ foreach (test IN ITEMS
     "common/test_sort"
     "common/test_approx_equal"
     )
-    add_test(NAME ${test}
-      COMMAND $<TARGET_FILE:mock-tests> ${test}
-  )
+    if(MOCK_CABLE_MPI)
+        add_test(NAME ${test}
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ${test}
+        )
+        set_tests_properties(${test} PROPERTIES PROCESSORS 1)
+    else()
+        add_test(NAME ${test}
+            COMMAND $<TARGET_FILE:mock-tests> ${test}
+        )
+    endif()
 endforeach ()
