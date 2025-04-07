@@ -15,8 +15,15 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
 
-set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
-add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    set(MOCK_CABLE_INTEL_Fortran_FLAGS -g -traceback)
+    add_compile_options(${MOCK_CABLE_INTEL_Fortran_FLAGS})
+endif()
+
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
+endif()
+
 add_library(
     common
     src/common_module.F90
@@ -29,10 +36,10 @@ add_library(
     src/mpi_serial_stub_module.F90
     src/partition.F90
 )
+target_link_libraries(common PUBLIC PkgConfig::NETCDF $<$<BOOL:${MOCK_CABLE_MPI}>:MPI::MPI_Fortran>)
 
 if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
-    target_link_libraries(common PRIVATE MPI::MPI_Fortran)
 endif()
 
 add_executable(
@@ -60,18 +67,11 @@ add_executable(
     test/simple4by4.F90
 )
 
-target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
-# target_link_libraries(test-output PRIVATE common PkgConfig::NETCDF)
-# target_link_libraries(test-datasetreader PRIVATE common PkgConfig::NETCDF)
-target_link_libraries(mock-cable PRIVATE common PkgConfig::NETCDF)
-target_link_libraries(simple4by4 PRIVATE common PkgConfig::NETCDF)
-
-if(MOCK_CABLE_MPI)
-    target_link_libraries(test-common PRIVATE MPI::MPI_Fortran)
-    # target_link_libraries(test-output PRIVATE MPI::MPI_Fortran)
-    # target_link_libraries(test-datasetreader PRIVATE MPI::MPI_Fortran)
-    target_link_libraries(mock-cable PRIVATE MPI::MPI_Fortran)
-endif()
+target_link_libraries(test-common PRIVATE common)
+# target_link_libraries(test-output PRIVATE common)
+# target_link_libraries(test-datasetreader PRIVATE common)
+target_link_libraries(mock-cable PRIVATE common)
+target_link_libraries(simple4by4 PRIVATE common)
 
 install(TARGETS test-common RUNTIME)
 # install(TARGETS test-output RUNTIME)
