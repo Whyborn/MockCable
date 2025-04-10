@@ -12,7 +12,7 @@ PROGRAM mock_cable
   IMPLICIT NONE
 
   INTEGER :: StartYear, EndYear, Year, NPoints, nmlUnit, StepsInYear, TimeStep
-  REAL :: Dt
+  REAL :: Dt, rain_sum
   CHARACTER(20) :: Calendar
   CHARACTER(200) :: LandmaskFile
   TYPE(ProcessDomain) :: ProcDomain
@@ -49,6 +49,7 @@ PROGRAM mock_cable
     StepsInYear = (days_in_year(Year) * SecsInDay) / Dt
     DO TimeStep = 1, StepsInYear
       CALL get_meteorology(mpi_grp, Year, TimeStep, Met)
+      rain_sum = sum(Met%Rain)
       CALL write_meteorology(mpi_grp, Met, TimeStep)
     END DO
   END DO
