@@ -7,12 +7,13 @@ PROGRAM mock_cable
     write_meteorology, finalise_meteorology
   USE output_module, ONLY: initialise_output_module
   USE domain_module, ONLY: process_landmask, ProcessDomain, GlobalDomain
-  use partition_mod, only: partition_mod_init, partition_mod_end
+  use partition_mod, only: partition_mod_init, partition_mod_end, rectangular_partitioning
 
   IMPLICIT NONE
 
   INTEGER :: StartYear, EndYear, Year, NPoints, nmlUnit, StepsInYear, TimeStep
   REAL :: Dt, rain_sum
+  logical :: write_output = .true.
   CHARACTER(20) :: Calendar
   CHARACTER(200) :: LandmaskFile
   TYPE(ProcessDomain) :: ProcDomain
@@ -20,7 +21,7 @@ PROGRAM mock_cable
   TYPE(MetType) :: Met
   TYPE(mpi_grp_t) :: mpi_grp
 
-  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile
+  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, rectangular_partitioning, write_output
 
   OPEN(NEWUNIT=nmlUnit, FILE='cable.nml', STATUS='OLD', ACTION='READ')
   READ(nmlUnit, NML=CABLENML)
@@ -42,7 +43,7 @@ PROGRAM mock_cable
   CALL set_calendar(Calendar)
 
   ! Prepare the meteorology module
-  CALL prepare_meteorology(Dt, Met, ProcDomain, GlobDomain, mpi_grp)
+  CALL prepare_meteorology(Dt, Met, ProcDomain, GlobDomain, mpi_grp, write_output)
 
   DO Year = StartYear, EndYear
     ! Compute number of steps in the year
@@ -50,13 +51,13 @@ PROGRAM mock_cable
     DO TimeStep = 1, StepsInYear
       CALL get_meteorology(mpi_grp, Year, TimeStep, Met)
       rain_sum = sum(Met%Rain)
-      CALL write_meteorology(mpi_grp, Met, TimeStep)
+      if (write_output) CALL write_meteorology(mpi_grp, Met, TimeStep)
     END DO
   END DO
 
   ! Close everything down
   call partition_mod_end()
-  CALL finalise_meteorology()
+  CALL finalise_meteorology(write_output)
   CALL mpi_mod_end()
   
 END PROGRAM mock_cable
