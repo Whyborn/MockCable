@@ -34,7 +34,7 @@ module partition_mod
 
   integer :: n_land !! Total number of land points in simulation domain
   integer, dimension(2) :: grid_shape_global !! 2D array shape of simulation domain
-  logical :: rectangular_partitioning = .true.
+  logical :: rectangular_partitioning = .false.
     !! Enable rectangular partitioning of spatial grid, otherwise sliced partitioning is used.
 
   integer, dimension(:), allocatable :: grid_index_to_land_index
