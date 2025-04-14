@@ -17,11 +17,27 @@ MODULE mpi_module
     mpi_mod_init, &
     mpi_mod_end, &
     mpi_check_error, &
-    mpi_grp_subset
+    mpi_grp_subset, &
+    mpi_info_set_hints, &
+    mpi_info_hints
 
   TYPE(MPI_COMM), PARAMETER :: MPI_COMM_UNDEFINED = MPI_COMM_NULL
 
   TYPE(MPI_COMM) :: default_comm ! Default communicator to use when creating groups
+
+  TYPE mpi_info_hints_t
+    CHARACTER(len=20) :: collective_buffering = ""
+    CHARACTER(len=20) :: cb_block_size = ""
+    CHARACTER(len=20) :: cb_buffer_size = ""
+    CHARACTER(len=20) :: cb_nodes = ""
+    CHARACTER(len=20) :: cb_config_list = ""
+    CHARACTER(len=20) :: striping_factor = ""
+    CHARACTER(len=20) :: stripe_size = ""
+    CHARACTER(len=20) :: striping_unit = ""
+    CHARACTER(len=20) :: stripe_width = ""
+  END TYPE mpi_info_hints_t
+
+  TYPE(mpi_info_hints_t) :: mpi_info_hints
 
   TYPE mpi_grp_t
     !* Class to handle MPI groups.
@@ -178,5 +194,32 @@ CONTAINS
     mpi_grp = mpi_grp_t(comm)
 
   END FUNCTION mpi_grp_subset
+
+  SUBROUTINE mpi_info_set_hints(info_handle)
+    TYPE(MPI_Info), INTENT(INOUT) :: info_handle
+    INTEGER :: ierr
+
+#ifdef __MPI__
+    IF (len_trim(mpi_info_hints%collective_buffering) > 0) &
+      CALL MPI_Info_set(info_handle, "collective_buffering", mpi_info_hints%collective_buffering, ierr)
+    IF (len_trim(mpi_info_hints%cb_block_size) > 0) &
+      CALL MPI_Info_set(info_handle, "cb_block_size", mpi_info_hints%cb_block_size, ierr)
+    IF (len_trim(mpi_info_hints%cb_buffer_size) > 0) &
+      CALL MPI_Info_set(info_handle, "cb_buffer_size", mpi_info_hints%cb_buffer_size, ierr)
+    IF (len_trim(mpi_info_hints%cb_nodes) > 0) &
+      CALL MPI_Info_set(info_handle, "cb_nodes", mpi_info_hints%cb_nodes, ierr)
+    IF (len_trim(mpi_info_hints%cb_config_list) > 0) &
+      CALL MPI_Info_set(info_handle, "cb_config_list", mpi_info_hints%cb_config_list, ierr)
+    IF (len_trim(mpi_info_hints%striping_factor) > 0) &
+      CALL MPI_Info_set(info_handle, "striping_factor", mpi_info_hints%striping_factor, ierr)
+    IF (len_trim(mpi_info_hints%stripe_size) > 0) &
+      CALL MPI_Info_set(info_handle, "stripe_size", mpi_info_hints%stripe_size, ierr)
+    IF (len_trim(mpi_info_hints%striping_unit) > 0) &
+      CALL MPI_Info_set(info_handle, "striping_unit", mpi_info_hints%striping_unit, ierr)
+    IF (len_trim(mpi_info_hints%stripe_width) > 0) &
+      CALL MPI_Info_set(info_handle, "stripe_width", mpi_info_hints%stripe_width, ierr)
+#endif
+
+  END SUBROUTINE mpi_info_set_hints
 
 END MODULE mpi_module

@@ -1,7 +1,7 @@
 PROGRAM mock_cable
 
   USE iso_fortran_env
-  USE mpi_module, ONLY: mpi_grp_t, mpi_mod_init, mpi_mod_end
+  USE mpi_module, ONLY: mpi_grp_t, mpi_mod_init, mpi_mod_end, mpi_info_hints
   USE time_module, ONLY: SecsInDay, set_calendar, days_in_year
   USE meteorology_module, ONLY: MetType, prepare_meteorology, get_meteorology,&
     write_meteorology, finalise_meteorology
@@ -21,7 +21,7 @@ PROGRAM mock_cable
   TYPE(MetType) :: Met
   TYPE(mpi_grp_t) :: mpi_grp
 
-  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, rectangular_partitioning, write_output
+  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, rectangular_partitioning, write_output, mpi_info_hints
 
   OPEN(NEWUNIT=nmlUnit, FILE='cable.nml', STATUS='OLD', ACTION='READ')
   READ(nmlUnit, NML=CABLENML)
