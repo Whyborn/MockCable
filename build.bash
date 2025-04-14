@@ -4,6 +4,8 @@ show_help() {
    cat << EOF
 Options:
    -m, --mpi      Compile with MPI
+       --serial-netcdf
+                  Compile with non-parallel NetCDF library
    -h, --help     Show help
 EOF
 }
@@ -20,6 +22,9 @@ while [ ${#} -gt 0 ]; do
          cmake_args+=(-DMOCK_CABLE_MPI="ON")
          mpi=1
          ;;
+      --serial-netcdf)
+         no_parallel_netcdf=1
+         ;;
       -h|--help)
          show_help
          exit
@@ -33,12 +38,16 @@ done
 module load cmake/3.24.2 intel-compiler-llvm/2025.0.4 
 
 if [ ${mpi} -eq 1 ]; then
-   module load openmpi/4.1.3 netcdf/4.8.0p
+   module load openmpi/4.1.3
    cmake_args+=(-DCMAKE_Fortran_COMPILER=mpifort)
-else
-   module load netcdf/4.8.0
 fi
- 
+
+if [[ -n ${no_parallel_netcdf} ]]; then
+   module load netcdf/4.8.0
+else
+   module load netcdf/4.8.0p
+fi
+
 prepend_path PKG_CONFIG_PATH "${NETCDF_BASE}/lib/Intel/pkgconfig"
 
 if module is-loaded openmpi; then
