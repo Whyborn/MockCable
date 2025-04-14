@@ -5,9 +5,10 @@ PROGRAM mock_cable
   USE time_module, ONLY: SecsInDay, set_calendar, days_in_year
   USE meteorology_module, ONLY: MetType, prepare_meteorology, get_meteorology,&
     write_meteorology, finalise_meteorology
-  USE output_module, ONLY: initialise_output_module
+  USE output_module, ONLY: initialise_output_module, mpi_info_hints_write
   USE domain_module, ONLY: process_landmask, ProcessDomain, GlobalDomain
   use partition_mod, only: partition_mod_init, partition_mod_end, rectangular_partitioning
+  use datasetreader_module, only: mpi_info_hints_read
 
   IMPLICIT NONE
 
@@ -21,7 +22,7 @@ PROGRAM mock_cable
   TYPE(MetType) :: Met
   TYPE(mpi_grp_t) :: mpi_grp
 
-  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, rectangular_partitioning
+  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, rectangular_partitioning, mpi_info_hints_write, mpi_info_hints_read
   NAMELIST /DEBUGNML/ write_output
 
   OPEN(NEWUNIT=nmlUnit, FILE='cable.nml', STATUS='OLD', ACTION='READ')

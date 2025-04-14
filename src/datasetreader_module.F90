@@ -2,9 +2,11 @@ MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
 #ifdef __MPI__
-USE mpi_f08, ONLY: MPI_INFO_NULL
+USE mpi_f08, ONLY: MPI_INFO_NULL, MPI_Info, MPI_Info_create
+#else
+USE mpi_serial_stub_module, ONLY: MPI_Info
 #endif
-USE mpi_module, ONLY: mpi_grp_t
+USE mpi_module, ONLY: mpi_grp_t, mpi_info_hints_t, mpi_info_set_hints
 USE netcdf
 USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
@@ -54,6 +56,8 @@ TYPE DatasetReader
   ! Array to store the retrieved data
   REAL, DIMENSION(:,:), ALLOCATABLE :: DataStorage
 END TYPE DatasetReader
+
+type(mpi_info_hints_t) :: mpi_info_hints_read
 
 CONTAINS
 
@@ -427,15 +431,19 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
+  TYPE(MPI_Info) :: info
+
   ! Close the old reader
   IF (Reader%CurrentFileID /= -1) THEN
     CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
   END IF
 
 #ifdef __MPI__
+  CALL MPI_Info_create(info)
+  CALL mpi_info_set_hints(info, mpi_info_hints_read)
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
     IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
-    comm=Reader%mpi_grp%comm%MPI_Val, info=MPI_INFO_NULL%MPI_Val))
+    comm=Reader%mpi_grp%comm%MPI_Val, info=info%MPI_Val))
 #else
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
     IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID))

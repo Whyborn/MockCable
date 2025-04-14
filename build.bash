@@ -30,10 +30,11 @@ while [ ${#} -gt 0 ]; do
    shift
 done
 
+module purge
 module load cmake/3.24.2 intel-compiler-llvm/2025.0.4 
 
 if [ ${mpi} -eq 1 ]; then
-   module load openmpi/4.1.3 netcdf/4.8.0p
+   module load openmpi/4.1.7 netcdf/4.8.0p
    cmake_args+=(-DCMAKE_Fortran_COMPILER=mpifort)
 else
    module load netcdf/4.8.0
