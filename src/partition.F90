@@ -51,11 +51,13 @@ module partition_mod
 
 contains
 
-  subroutine partition_mod_init(mask_global, mpi_grp)
+  subroutine partition_mod_init(mask_global, mpi_grp, n_io_ranks)
     !! Initialise data structures required for partition transfer.
     logical, dimension(:,:), allocatable, intent(in) :: mask_global !! Land mask of simulation domain
     type(mpi_grp_t), intent(in) :: mpi_grp !! MPI group
+    integer, intent(in), optional :: n_io_ranks
 
+    integer :: n_grid_partitions
     integer, dimension(2) :: grid_partition_start, grid_partition_count
     integer :: i, j, rank
     integer :: land_index_global, land_index_start, land_index_count, land_index_end
@@ -64,6 +66,12 @@ contains
     grid_shape_global = shape(mask_global)
 
     n_land = count(mask_global)
+
+    if (present(n_io_ranks)) then
+      n_grid_partitions = n_io_ranks
+    else
+      n_grid_partitions = mpi_grp%size
+    end if
 
     allocate( &
       grid_index_to_land_index(product(grid_shape_global)), &
@@ -87,8 +95,8 @@ contains
     allocate(grid_partition_land_index_count(mpi_grp%size), source=0)
 
     land_index_global = 1
-    do rank = 0, mpi_grp%size - 1
-      call get_grid_partition_start_count(grid_shape_global, mpi_grp%size, rank, grid_partition_start, grid_partition_count)
+    do rank = 0, n_grid_partitions - 1
+      call get_grid_partition_start_count(grid_shape_global, n_grid_partitions, rank, grid_partition_start, grid_partition_count)
       do grid_index_local = 1, product(grid_partition_count)
         grid_index_global = grid_index_local_to_global(grid_shape_global, grid_partition_start, grid_partition_count, grid_index_local)
         call grid_index_to_ij(grid_index_global, grid_shape_global, i, j)
@@ -115,7 +123,7 @@ contains
     land_index_end = land_index_start + land_index_count - 1
     do land_index_global = land_index_start, land_index_end
       grid_index_global = land_index_to_grid_index(land_index_global)
-      rank = get_grid_partition_index(grid_shape_global, grid_index_global, mpi_grp%size)
+      rank = get_grid_partition_index(grid_shape_global, grid_index_global, n_grid_partitions)
       partition_transfer_grid_to_land%counts_recv(rank + 1) = partition_transfer_grid_to_land%counts_recv(rank + 1) + 1
     end do
 

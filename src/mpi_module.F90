@@ -16,7 +16,8 @@ MODULE mpi_module
     mpi_grp_t, &
     mpi_mod_init, &
     mpi_mod_end, &
-    mpi_check_error
+    mpi_check_error, &
+    mpi_grp_subset
 
   TYPE(MPI_COMM), PARAMETER :: MPI_COMM_UNDEFINED = MPI_COMM_NULL
 
@@ -156,5 +157,26 @@ CONTAINS
 #endif
 
   END SUBROUTINE mpi_check_error
+
+  FUNCTION mpi_grp_subset(mpi_grp_parent, ranks) RESULT(mpi_grp)
+    TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp_parent
+    INTEGER, INTENT(IN) :: ranks(:)
+    TYPE(MPI_Group) :: parent_group, subset_group
+    TYPE(MPI_COMM) :: comm
+    INTEGER :: ierr
+    TYPE(mpi_grp_t) :: mpi_grp
+
+    CALL MPI_Comm_group(mpi_grp_parent%comm, parent_group, ierr)
+    CALL mpi_check_error(ierr)
+
+    CALL MPI_Group_incl(parent_group, size(ranks), ranks, subset_group, ierr)
+    CALL mpi_check_error(ierr)
+
+    CALL MPI_Comm_create(mpi_grp_parent%comm, subset_group, comm, ierr)
+    CALL mpi_check_error(ierr)
+
+    mpi_grp = mpi_grp_t(comm)
+
+  END FUNCTION mpi_grp_subset
 
 END MODULE mpi_module

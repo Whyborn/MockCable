@@ -1,6 +1,6 @@
 program simple4by4
 
-  use mpi_module, only: mpi_grp_t, mpi_mod_init, mpi_mod_end
+  use mpi_module, only: mpi_grp_t, mpi_mod_init, mpi_mod_end, mpi_grp_subset
 
   use partition_mod, only: partition_mod_init, partition_mod_end
   use partition_mod, only: transform_grid_to_land, transform_land_to_grid
@@ -13,9 +13,10 @@ program simple4by4
   end type domain_t
 
   integer, parameter :: N = 4, M = 4
+  integer, parameter :: MAX_N_IO_RANKS = 2
+  integer, parameter :: IO_RANKS(MAX_N_IO_RANKS) = [0, 1]
   real, parameter :: FILL_VALUE = 0.0
   integer, parameter :: LAND = 1, NOT_LAND = 0
-  logical, parameter :: RECTANGULAR_PARTITIONING = .true.
 
   logical, dimension(:, :), allocatable :: mask_global
 
@@ -23,13 +24,22 @@ program simple4by4
   real, dimension(:), allocatable :: land_vector
 
   type(domain_t) :: domain_global, domain_local
-  type(mpi_grp_t) :: mpi_grp
+  type(mpi_grp_t) :: mpi_grp, mpi_grp_io
   integer :: grid_index
   integer :: nland
-  integer :: i, j
+  integer :: n_io_ranks
+  logical :: is_io_rank
+  integer :: i, j, rank
 
   call mpi_mod_init()
   mpi_grp = mpi_grp_t()
+
+  n_io_ranks = min(mpi_grp%size, MAX_N_IO_RANKS)
+  if (mpi_grp%size > MAX_N_IO_RANKS) then
+    mpi_grp_io = mpi_grp_subset(mpi_grp, IO_RANKS)
+  else
+    mpi_grp_io = mpi_grp
+  end if
 
   domain_global%start = [1, 1]
   domain_global%count = [N, M]
@@ -62,9 +72,14 @@ program simple4by4
     end do
   end do
 
-  call partition_mod_init(mask_global, mpi_grp)
-
-  call get_grid_partition_start_count(domain_global%count, mpi_grp%size, mpi_grp%rank, domain_local%start, domain_local%count)
+  call partition_mod_init(mask_global, mpi_grp, n_io_ranks)
+  is_io_rank = mpi_grp%rank < n_io_ranks
+  if (is_io_rank) then
+    call get_grid_partition_start_count(domain_global%count, n_io_ranks, mpi_grp%rank, domain_local%start, domain_local%count)
+  else
+    domain_local%start = [1, 1]
+    domain_local%count = [0, 0]
+  end if
 
   allocate( &
     input_data_local, &
