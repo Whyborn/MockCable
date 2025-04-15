@@ -87,8 +87,12 @@ CONTAINS
 
     IF (PRESENT(comm)) THEN
 #ifdef __MPI__
-      CALL MPI_Comm_dup(comm, mpi_grp%comm, ierr)
-      call mpi_check_error(ierr)
+      IF (comm /= MPI_COMM_UNDEFINED) THEN
+        CALL MPI_Comm_dup(comm, mpi_grp%comm, ierr)
+        CALL mpi_check_error(ierr)
+      ELSE
+        mpi_grp%comm = comm
+      END IF
 #else
       mpi_grp%comm = comm
 #endif
