@@ -404,6 +404,7 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
   ! given index.
 
   INTEGER, INTENT(IN) :: FileIndex
+  INTEGER :: mode
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
@@ -412,13 +413,16 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
     CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
   END IF
 
+  mode = IOR(NF90_NOWRITE, NF90_NETCDF4)
+
 #ifdef __MPI__
+  mode = IOR(mode, NF90_MPIIO)
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
-    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
-    comm=Reader%mpi_grp%comm%MPI_Val, info=MPI_INFO_NULL%MPI_Val))
+    mode, Reader%CurrentFileID, comm=Reader%mpi_grp%comm%MPI_Val,&
+    info=MPI_INFO_NULL%MPI_Val))
 #else
   CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
-    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID))
+    mode, Reader%CurrentFileID))
 #endif
 
   Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)

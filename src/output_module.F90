@@ -29,6 +29,8 @@ MODULE output_module
     ! Variables
     TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: Variables
 
+    TYPE(MPI_Info) :: info
+
   END TYPE NCFile
 
   TYPE NCVariable
@@ -122,20 +124,19 @@ CONTAINS
 
     CHARACTER(LEN=*) :: FileName
     TYPE(NCFile) :: OutFile
-    TYPE(MPI_Info) :: info
 
     ! Old mode argument is required for NF90_SET_FILL
-    INTEGER :: OldMode
+    INTEGER :: OldMode, mode
 
+    mode = IOR(NF90_CLOBBER, NF90_NETCDF4)
 #ifdef __MPI__
-    CALL MPI_Info_create(info)
-    CALL mpi_info_set_hints(info)
-    CALL handle_ncstat(NF90_CREATE(FileName,&
-      IOR(NF90_CLOBBER, NF90_NETCDF4), OutFile%FileID,&
-      comm=mpi_grp%comm%MPI_Val, info=info%MPI_Val))
+    mode = IOR(mode, NF90_MPIIO)
+    CALL MPI_Info_create(OutFile%info)
+    CALL mpi_info_set_hints(OutFile%info)
+    CALL handle_ncstat(NF90_CREATE(FileName, mode, OutFile%FileID,&
+      comm=mpi_grp%comm%MPI_Val, info=OutFile%info%MPI_Val))
 #else
-    CALL handle_ncstat(NF90_CREATE(FileName,&
-      ior(NF90_CLOBBER, NF90_NETCDF4), OutFile%FileID))
+    CALL handle_ncstat(NF90_CREATE(FileName, mode, OutFile%FileID))
 #endif
   
     ! Set nofill mode
