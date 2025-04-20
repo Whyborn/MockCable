@@ -85,7 +85,7 @@ FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
   ListOfFiles = get_files_from_text(TextFileList)
 
   ! Now sort them by their starting data and attach it to the Reader
-  NewReader%DatasetFiles = sort_by_start_date(ListOfFiles)
+  NewReader%DatasetFiles = sort_by_start_date(ListOfFiles, mpi_grp)
 
   ! To correctly retrieve indices later, we need to know at what year the
   ! dataset begins.
@@ -248,15 +248,15 @@ SUBROUTINE identify_start_year(Reader)
   CHARACTER(LEN=33) :: TimeUnits
 
 #ifdef __MPI__
-  CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1), IOR(NF90_NOWRITE,&
+  CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), IOR(NF90_NOWRITE,&
     NF90_NETCDF4), ncID, comm=Reader%mpi_grp%comm%MPI_Val,&
     info=MPI_INFO_NULL%MPI_Val),&
-    'Failed to open file '//ListOfFiles(FileCounter)//' while identifying '&
+    'Failed to open file '//TRIM(Reader%DatasetFiles(1))//' while identifying '&
     //'the reference year for the dataset.')
 #else
   CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE,&
     ncID),&
-    'Failed to open file '//ListOfFiles(FileCounter)//' while identifying '&
+    'Failed to open file '//TRIM(Reader%DatasetFiles(1))//' while identifying '&
     //'the reference year for the dataset.')
 #endif
   
