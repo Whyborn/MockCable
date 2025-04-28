@@ -1,7 +1,7 @@
 PROGRAM test_output
 
   USE output_module
-  USE domain_module
+  USE partition_mod
   USE common_module, ONLY: handle_ncstat
   USE mpi_module
 
@@ -25,7 +25,14 @@ PROGRAM test_output
   END DO
 
   ! Prepare the domain
-  CALL prepare_process_domain(Landmask, ProcDomain, mpi_grp)
+  call partition_mod_init(Landmask, mpi_grp)
+  call get_grid_partition_start_count( &
+    shape(Landmask), &
+    mpi_grp%size, &
+    mpi_grp%rank, &
+    ProcDomain%ProcessDomainStart, &
+    ProcDomain%ProcessDomainSize &
+  )
 
   CALL initialise_output_module(ProcDomain, mpi_grp)
   CALL test_single_unlimited_dimension()

@@ -47,15 +47,15 @@ add_executable(
     test/test_common.F90
 )
 
-# add_executable(
-#     test-output
-#     test/test_output.F90
-# )
+add_executable(
+    test-output
+    test/test_output.F90
+)
 
-# add_executable(
-#     test-datasetreader
-#     test/test_datasetreader.F90
-# )
+add_executable(
+    test-datasetreader
+    test/test_datasetreader.F90
+)
 
 add_executable(
     mock-cable
@@ -68,13 +68,13 @@ add_executable(
 )
 
 target_link_libraries(test-common PRIVATE common)
-# target_link_libraries(test-output PRIVATE common)
-# target_link_libraries(test-datasetreader PRIVATE common)
+target_link_libraries(test-output PRIVATE common)
+target_link_libraries(test-datasetreader PRIVATE common)
 target_link_libraries(mock-cable PRIVATE common)
 target_link_libraries(simple4by4 PRIVATE common)
 
 install(TARGETS test-common RUNTIME)
-# install(TARGETS test-output RUNTIME)
-# install(TARGETS test-datasetreader RUNTIME)
+install(TARGETS test-output RUNTIME)
+install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)

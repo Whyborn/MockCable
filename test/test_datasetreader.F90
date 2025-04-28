@@ -2,7 +2,7 @@ PROGRAM test_datasetreader
 
   USE datasetreader_module
   USE time_module
-  USE domain_module
+  USE partition_mod
   USE mpi_module
 
 
@@ -35,7 +35,14 @@ PROGRAM test_datasetreader
   RainFiles = "../../run_mock_cable/RainFiles"
 
   ! Prepare the domain
-  CALL prepare_process_domain(Landmask, ProcDomain, mpi_grp)
+  call partition_mod_init(Landmask, mpi_grp)
+  call get_grid_partition_start_count( &
+    shape(Landmask), &
+    mpi_grp%size, &
+    mpi_grp%rank, &
+    ProcDomain%ProcessDomainStart, &
+    ProcDomain%ProcessDomainSize &
+  )
 
   Reader = initialise_datasetreader_at_timestep(RainFiles, RainNames, 10800.0,&
     ProcDomain, mpi_grp)
