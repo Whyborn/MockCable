@@ -85,6 +85,8 @@ FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
   ! Array to hold all the file names contained in the specified file
   CHARACTER(LEN=250), DIMENSION(:), ALLOCATABLE :: ListOfFiles
 
+  NewReader%mpi_grp = mpi_grp
+
   ! Get the list of files in the dataset from the text file
   ListOfFiles = get_files_from_text(TextFileList)
 
@@ -104,7 +106,6 @@ FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
   NewReader%TimestepSize = INT(StepSize)
 
   ! Prepare the process information
-  NewReader%mpi_grp = mpi_grp
   NewReader%Starts = ProcDomain%ProcessDomainStart
   ALLOCATE(NewReader%DataStorage(ProcDomain%ProcessDomainSize(1),&
     ProcDomain%ProcessDomainSize(2)))
