@@ -33,7 +33,7 @@ TYPE(NCFile) :: MetOutputFile
 CONTAINS
 
 SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
-    mpi_grp)
+    mpi_grp, write_output)
   !*## Purpose
   !
   ! Prepare the meteorology input routines
@@ -47,6 +47,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
   TYPE(ProcessDomain), INTENT(IN) :: ProcDomainIn
   TYPE(GlobalDomain), INTENT(IN) :: GlobDomainIn
   TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
+  LOGICAL, INTENT(IN) :: write_output
 
   CHARACTER(LEN=300) :: RainFile, TemperatureFile, WindFile, PressureFile,&
     ShortwaveRadFile, LongwaveRadFile
@@ -90,6 +91,8 @@ SUBROUTINE prepare_meteorology(Timestep, Met, ProcDomainIn, GlobDomainIn,&
     ShortwaveRadFile, ['SWdown'], Timestep, ProcDomain, mpi_grp)
   MetDataReaders(LongwaveRadID) = initialise_datasetreader_at_timestep(&
     LongwaveRadFile, ['LWdown'], Timestep, ProcDomain, mpi_grp)
+
+  if (.not. write_output) return
 
   ! Create the file to write the output to
   MetOutputFile = initialise_output_file(&
@@ -193,14 +196,15 @@ SUBROUTINE write_meteorology(mpi_grp, Met, Time)
 
 END SUBROUTINE write_meteorology
 
-SUBROUTINE finalise_meteorology()
+SUBROUTINE finalise_meteorology(write_output)
   !*## Purpose
   !
   ! Close all the file handles used in the meteorology
+  LOGICAL, INTENT(IN) :: write_output
 
   INTEGER :: Iter
 
-  CALL close_file(MetOutputFile)
+  if (write_output) CALL close_file(MetOutputFile)
 
   DO Iter = 1, NumVariables
     CALL close_reader(MetDataReaders(Iter))

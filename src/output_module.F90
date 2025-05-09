@@ -2,11 +2,13 @@ MODULE output_module
 
   USE iso_fortran_env, ONLY: ERROR_UNIT
 #ifdef __MPI__
-  USE mpi_f08, ONLY: MPI_INFO_NULL
+  USE mpi_f08, ONLY: MPI_Info, MPI_Info_create
+#else
+  USE mpi_serial_stub_module, ONLY: MPI_Info
 #endif
   USE netcdf
   USE common_module, ONLY: handle_ncstat
-  USE mpi_module, ONLY: mpi_grp_t
+  USE mpi_module, ONLY: mpi_grp_t, mpi_info_hints_t, mpi_info_set_hints
   USE domain_module, ONLY: ProcessDomain, GlobalDomain
 
   IMPLICIT NONE
@@ -87,6 +89,7 @@ MODULE output_module
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: ProcDomain
   TYPE(mpi_grp_t), PRIVATE :: mpi_grp
+  TYPE(mpi_info_hints_t) :: mpi_info_hints_write
   
   ! The default fill values for each type
   REAL :: DefaultFloatFillVal = NF90_FILL_REAL
@@ -122,14 +125,17 @@ CONTAINS
 
     CHARACTER(LEN=*) :: FileName
     TYPE(NCFile) :: OutFile
+    TYPE(MPI_Info) :: info
 
     ! Old mode argument is required for NF90_SET_FILL
     INTEGER :: OldMode
 
 #ifdef __MPI__
+    CALL MPI_Info_create(info)
+    CALL mpi_info_set_hints(info, mpi_info_hints_write)
     CALL handle_ncstat(NF90_CREATE(FileName,&
       IOR(NF90_CLOBBER, NF90_NETCDF4), OutFile%FileID,&
-      comm=mpi_grp%comm%MPI_Val, info=MPI_INFO_NULL%MPI_Val))
+      comm=mpi_grp%comm%MPI_Val, info=info%MPI_Val))
 #else
     CALL handle_ncstat(NF90_CREATE(FileName,&
       ior(NF90_CLOBBER, NF90_NETCDF4), OutFile%FileID))

@@ -34,7 +34,7 @@ module partition_mod
 
   integer :: n_land !! Total number of land points in simulation domain
   integer, dimension(2) :: grid_shape_global !! 2D array shape of simulation domain
-  logical :: rectangular_partitioning = .true.
+  logical :: rectangular_partitioning = .false.
     !! Enable rectangular partitioning of spatial grid, otherwise sliced partitioning is used.
 
   integer, dimension(:), allocatable :: grid_index_to_land_index
@@ -385,7 +385,11 @@ contains
       start = [i_start, j_start]
       count = [i_count, j_count]
     else
-      call get_partition_start_count(grid_shape_global(2), k, p, j_start, j_count)
+      j_count = ceiling(real(grid_shape_global(2)) / k)
+      j_start = j_count * p + 1
+      if (p == k - 1 .and. mod(grid_shape_global(2), k) /= 0) then
+        j_count = mod(grid_shape_global(2), j_count)
+      end if
       start = [1, j_start]
       count = [grid_shape_global(1), j_count]
     end if
@@ -398,7 +402,7 @@ contains
     integer, dimension(2), intent(in) :: grid_shape_global
     integer, intent(in) :: grid_index
     integer, intent(in) :: k
-    integer :: i, j, k_i, k_j, p_i, p_j, p
+    integer :: i, j, k_i, k_j, p_i, p_j, p, j_count
 
     call grid_index_to_ij(grid_index, grid_shape_global, i, j)
 
@@ -408,7 +412,8 @@ contains
       p_j = get_partition_index(grid_shape_global(2), k_j, j)
       p = p_i + p_j * k_i
     else
-      p = get_partition_index(grid_shape_global(2), k, j)
+      j_count = ceiling(real(grid_shape_global(2)) / k)
+      p = (j - 1) / j_count
     end if
 
   end function get_grid_partition_index

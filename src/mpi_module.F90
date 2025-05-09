@@ -16,11 +16,27 @@ MODULE mpi_module
     mpi_grp_t, &
     mpi_mod_init, &
     mpi_mod_end, &
+    mpi_info_set_hints, &
+    mpi_info_hints_t, &
     mpi_check_error
 
   TYPE(MPI_COMM), PARAMETER :: MPI_COMM_UNDEFINED = MPI_COMM_NULL
+  INTEGER, PARAMETER :: HINT_UNDEFINED_INTEGER = 0
+  CHARACTER(len=*), PARAMETER :: HINT_UNDEFINED_CHARACTER = ""
 
   TYPE(MPI_COMM) :: default_comm ! Default communicator to use when creating groups
+
+  TYPE mpi_info_hints_t
+    CHARACTER(len=20) :: collective_buffering = HINT_UNDEFINED_CHARACTER
+    INTEGER :: cb_block_size = HINT_UNDEFINED_INTEGER
+    INTEGER :: cb_buffer_size = HINT_UNDEFINED_INTEGER
+    INTEGER :: cb_nodes = HINT_UNDEFINED_INTEGER
+    CHARACTER(len=20) :: cb_config_list = HINT_UNDEFINED_CHARACTER
+    INTEGER :: striping_factor = HINT_UNDEFINED_INTEGER
+    INTEGER :: stripe_size = HINT_UNDEFINED_INTEGER
+    INTEGER :: striping_unit = HINT_UNDEFINED_INTEGER
+    INTEGER :: stripe_width = HINT_UNDEFINED_INTEGER
+  END TYPE mpi_info_hints_t
 
   TYPE mpi_grp_t
     !* Class to handle MPI groups.
@@ -152,5 +168,58 @@ CONTAINS
 #endif
 
   END SUBROUTINE mpi_check_error
+
+  SUBROUTINE mpi_info_set_hints(info_handle, hints)
+    TYPE(MPI_Info), INTENT(INOUT) :: info_handle
+    TYPE(mpi_info_hints_t), INTENT(IN) :: hints
+    CHARACTER(len=20) :: buffer
+    INTEGER :: ierr
+
+#ifdef __MPI__
+    IF (hints%collective_buffering /= HINT_UNDEFINED_CHARACTER) THEN
+      CALL MPI_Info_set(info_handle, "collective_buffering", hints%collective_buffering, ierr)
+    END IF
+
+    IF (hints%cb_block_size /= HINT_UNDEFINED_INTEGER) then
+      write(buffer, "(I0)") hints%cb_block_size
+      CALL MPI_Info_set(info_handle, "cb_block_size", buffer, ierr)
+    END IF
+
+    IF (hints%cb_buffer_size /= HINT_UNDEFINED_INTEGER) THEN
+      write(buffer, "(I0)") hints%cb_buffer_size
+      CALL MPI_Info_set(info_handle, "cb_buffer_size", buffer, ierr)
+    END IF
+
+    IF (hints%cb_nodes /= HINT_UNDEFINED_INTEGER) THEN
+      write(buffer, "(I0)") hints%cb_nodes
+      CALL MPI_Info_set(info_handle, "cb_nodes", buffer, ierr)
+    END IF
+
+    IF (hints%cb_config_list /= HINT_UNDEFINED_CHARACTER) THEN
+      CALL MPI_Info_set(info_handle, "cb_config_list", hints%cb_config_list, ierr)
+    END IF
+
+    IF (hints%striping_factor /= HINT_UNDEFINED_INTEGER) THEN
+      write(buffer, "(I0)") hints%striping_factor
+      CALL MPI_Info_set(info_handle, "striping_factor", buffer, ierr)
+    END IF
+
+    IF (hints%stripe_size /= HINT_UNDEFINED_INTEGER) THEN
+      write(buffer, "(I0)") hints%stripe_size
+      CALL MPI_Info_set(info_handle, "stripe_size", buffer, ierr)
+    END IF
+
+    IF (hints%striping_unit /= HINT_UNDEFINED_INTEGER) THEN
+      write(buffer, "(I0)") hints%striping_unit
+      CALL MPI_Info_set(info_handle, "striping_unit", buffer, ierr)
+    END IF
+
+    IF (hints%stripe_width /= HINT_UNDEFINED_INTEGER) THEN
+      write(buffer, "(I0)") hints%stripe_width
+      CALL MPI_Info_set(info_handle, "stripe_width", buffer, ierr)
+    END IF
+#endif
+
+  END SUBROUTINE mpi_info_set_hints
 
 END MODULE mpi_module

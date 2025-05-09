@@ -4,6 +4,9 @@ MODULE domain_module
 
 USE netcdf
 USE mpi_module, ONLY: mpi_grp_t
+#ifdef __MPI__
+USE mpi_f08, ONLY: MPI_INFO_NULL
+#endif
 USE common_module, ONLY: handle_ncstat
 use partition_mod, only: partition_mod_init, get_n_land
 use partition_mod, only: get_grid_partition_start_count, land_index_local_to_ij_global
@@ -63,7 +66,11 @@ SUBROUTINE process_landmask(LandmaskFile, ProcDomain, GlobDomain, mpi_grp)
   INTEGER, DIMENSION(:,:), ALLOCATABLE :: Landmask
   LOGICAL, DIMENSION(:,:), ALLOCATABLE :: LogicalLandmask
 
+#ifdef __MPI__
+  CALL handle_ncstat(NF90_OPEN(TRIM(LandmaskFile), NF90_NOWRITE, ncID, comm=mpi_grp%comm%MPI_Val, info=MPI_INFO_NULL%MPI_Val))
+#else
   CALL handle_ncstat(NF90_OPEN(TRIM(LandmaskFile), NF90_NOWRITE, ncID))
+#endif
   CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'longitude', LonID))
   CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, LonID, LEN=nLon))
 
@@ -92,6 +99,7 @@ SUBROUTINE process_landmask(LandmaskFile, ProcDomain, GlobDomain, mpi_grp)
   
   CALL handle_ncstat(NF90_INQ_VARID(ncID, 'latitude', LatID))
   CALL handle_ncstat(NF90_GET_VAR(ncID, LatID, GlobDomain%LatitudeAxis))
+  CALL handle_ncstat(NF90_CLOSE(ncID))
 
   call partition_mod_init(LogicalLandmask, mpi_grp)
 
