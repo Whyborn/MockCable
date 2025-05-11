@@ -11,6 +11,15 @@ MODULE output_module
 
   IMPLICIT NONE
 
+  PRIVATE :: TemporalAggregation, OnTimestep, Daily, Monthly, Yearly
+  ENUM, BIND(C)
+    ENUMERATOR :: TemporalAggregation = 0
+    ENUMERATOR :: OnTimestep = 1
+    ENUMERATOR :: Daily = 2
+    ENUMERATOR :: Monthly = 3
+    ENUMERATOR :: Yearly = 4
+  END ENUM
+    
   TYPE NCFile
     !*## Purpose
     !
@@ -25,6 +34,9 @@ MODULE output_module
     ! Handling for unlimited dimensions
     LOGICAL :: HasUnlimitedDimension
     INTEGER :: UnlimitedDimensionLength = 0
+
+    ! What type is temporal aggregation to use
+    INTEGER(KIND(TemporalAggregation)) :: AggregationType = 0
 
     ! Variables
     TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: Variables
@@ -41,7 +53,27 @@ MODULE output_module
     ! Dimension names and IDs
     CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
+
+    ! Aggregation counter
+    INTEGER :: AggCounter = 0
+
   END TYPE NCVariable
+
+  TYPE, EXTENDS(NCVariable) :: RealNCVariable
+    !*## Purpose
+    !
+    ! A real instance of an NCVariable
+
+    REAL, DIMENSION(:,:), ALLOCATABLE :: AccumData
+  END TYPE RealNCVariable
+
+  TYPE, EXTENDS(NCVariable) :: IntNCVariable
+    !*## Purpose
+    !
+    ! A integer instance of an NCVariable
+
+    INTEGER, DIMENSION(:,:), ALLOCATABLE :: AccumData
+  END TYPE IntNCVariable
 
   INTERFACE initialise_output_file
     MODULE PROCEDURE initialise_output_file_by_name
@@ -64,11 +96,6 @@ MODULE output_module
   ! in future.
   INTERFACE put_record
     MODULE PROCEDURE put_record_rank2
-    !MODULE PROCEDURE put_record_rank3
-    !MODULE PROCEDURE put_record_real_rank2
-    !MODULE PROCEDURE add_record_real_rank3
-    !MODULE PROCEDURE put_record_int_rank2
-    !MODULE PROCEDURE add_record_int_rank3
   END INTERFACE put_record
 
   ! Store information about the MPI configuration
@@ -98,7 +125,7 @@ CONTAINS
 
   END SUBROUTINE initialise_output_module
 
-  FUNCTION initialise_output_file_by_name(FileName) RESULT(OutFile)
+  FUNCTION initialise_output_file_by_name(FileName) RESULT(OutFile, AggMethod)
     !*## Purpose
     !
     ! Initialise a new output file with the given name.
@@ -107,16 +134,13 @@ CONTAINS
     !
     ! Use NetCDF routines to open a file in parallel if necessary.
 
-    CHARACTER(LEN=*) :: FileName
+    CHARACTER(LEN=*) :: FileName, AggMethod
     TYPE(NCFile) :: OutFile
 
     ! Old mode argument is required for NF90_SET_FILL
     INTEGER :: OldMode
 
 #ifdef __MPI__
-    !CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
-      !IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm,&
-      !MPI_INFO_NULL, OutFile%FileID))
     CALL handle_ncstat(NF90_CREATE_PAR(FileName,&
       IOR(NF90_CLOBBER, NF90_NETCDF4), mpi_grp%comm%MPI_Val,&
       MPI_INFO_NULL%MPI_Val, OutFile%FileID))
@@ -124,6 +148,24 @@ CONTAINS
     CALL handle_ncstat(NF90_CREATE(FileName, NF90_CLOBBER, OutFile%FileID))
 #endif
   
+    ! Set the aggregation period
+    IF (PRESENT(AggMethod)) THEN
+      IF (AggMethod == "on_timestep") THEN
+        OutFile%AggregationType = OnTimestep
+      ELSEIF (AggMethod == "daily") THEN
+        OutFile%AggregationType = Daily
+      ELSEIF (AggMethod == "monthly") THEN
+        OutFile%AggregationType = Monthly
+      ELSEIF (AggMethod == "yearly") THEN
+        OutFile%AggregationType = Yearly
+      ELSE
+        WRITE(ERROR_UNIT, '(A)') "Invalid option given for aggregation "//&
+          "method in "//FileName
+      END IF
+    ELSE
+      OutFile%AggregationType = Daily
+    END IF
+
     ! Set nofill mode
     CALL handle_ncstat(NF90_SET_FILL(OutFile%FileID, NF90_NOFILL, OldMode))
     
@@ -132,7 +174,7 @@ CONTAINS
   END FUNCTION initialise_output_file_by_name
 
   FUNCTION initialise_output_file_with_dimensions(FileName, DimNames,&
-    DimLengths) RESULT(OutFile)
+    DimLengths, AggMethod) RESULT(OutFile)
     !*## Purpose
     !
     ! Initialise a new output file with the given name.
@@ -145,7 +187,15 @@ CONTAINS
     CHARACTER(LEN=*) :: FileName
     CHARACTER(LEN=*), DIMENSION(:) :: DimNames
     INTEGER, DIMENSION(:) :: DimLengths
+    CHARACTER(LEN=*), OPTIONAL :: AggMethod
     TYPE(NCFile) :: OutFile
+
+    ! Check that the aggregation method is valid
+    IF (PRESENT(AggregationMethod)) THEN
+      initialise_output_file_by_name(FileName, AggregationMethod)
+    ELSE
+      initialise_output_file_by_name(FileName, "daily")
+    END IF
 
     ! Initialise the file
     OutFile = initialise_output_file_by_name(FileName)
@@ -581,6 +631,33 @@ CONTAINS
 
   END SUBROUTINE put_record_rank2
 
+  SUBROUTINE write_to_record_rank2(OutFile, VarName, SourceData)
+    !*## Purpose
+    !
+    ! A handler for handling variables agnostically of the temporal aggregation
+    ! method.
+    !
+    !## Method
+    !
+    ! Add the passed SourceData to the accumulation array. When the
+    ! accumulation period has elapsed, average the result and write it to file.
+
+    TYPE(NCFile), INTENT(INOUT) :: OutFile
+    CHARACTER(LEN=*), INTENT(IN) :: VarName
+    REAL, DIMENSION(:,:) :: SourceData
+
+    TYPE(RealNCVariable) :: TargetVariable
+
+    TargetVariable = get_target_variable(OutFile, VarName)
+
+    ! Accumulate the variable, and increment the counter
+    TargetVariable%AccumData = TargetVariable%AccumData + SourceData
+    TargetVariable%AggCounter = TargetVariable%AggCounter + 1
+
+    ! If we reach our trigger value, add to the time dimension, write the
+    ! record to file, reset the accumulator and work out the next trigger
+    IF (TargetVariable%AggCounter == TargetVariable%WriteTrigger) THEN
+      
   SUBROUTINE set_fill_value(OutFile, VarName, FillVal)
     !*## Purpose
     !
