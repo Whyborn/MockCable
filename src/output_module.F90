@@ -54,8 +54,8 @@ MODULE output_module
     CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
     INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
 
-    ! Aggregation counter
-    INTEGER :: AggCounter = 0
+    ! Aggregation counter and trigger
+    INTEGER :: AggCounter = 0, Trigger
 
   END TYPE NCVariable
 
@@ -97,6 +97,10 @@ MODULE output_module
   INTERFACE put_record
     MODULE PROCEDURE put_record_rank2
   END INTERFACE put_record
+
+  INTERFACE write_to_record
+    MODULE PROCEDURE write_to_record_rank2
+  END INTERFACE write_to_record
 
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: ProcDomain
@@ -631,7 +635,7 @@ CONTAINS
 
   END SUBROUTINE put_record_rank2
 
-  SUBROUTINE write_to_record_rank2(OutFile, VarName, SourceData)
+  SUBROUTINE write_to_record_rank2(OutFile, VarName, SourceData, Year, Step)
     !*## Purpose
     !
     ! A handler for handling variables agnostically of the temporal aggregation
@@ -643,12 +647,19 @@ CONTAINS
     ! accumulation period has elapsed, average the result and write it to file.
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
-    CHARACTER(LEN=*), INTENT(IN) :: VarName
-    REAL, DIMENSION(:,:) :: SourceData
+    CHARACTER(LEN=*), INTENT(INOUT) :: VarName
+    REAL, DIMENSION(:,:), INTENT(IN) :: SourceData
+    INTEGER, INTENT(IN) :: Year, Step
 
     TYPE(RealNCVariable) :: TargetVariable
 
     TargetVariable = get_target_variable(OutFile, VarName)
+
+    ! If we've just triggered a write, then we need to determine the next
+    ! trigger point
+    IF (TargetVariable%AggCounter == 0) THEN
+      determine_aggregation_period(TargetVariable, Year, Step)
+    END IF
 
     ! Accumulate the variable, and increment the counter
     TargetVariable%AccumData = TargetVariable%AccumData + SourceData
@@ -657,6 +668,10 @@ CONTAINS
     ! If we reach our trigger value, add to the time dimension, write the
     ! record to file, reset the accumulator and work out the next trigger
     IF (TargetVariable%AggCounter == TargetVariable%WriteTrigger) THEN
+      put_record(Outfile, VarName, TargetVariable%AccumData /&
+        TargetVariable%AggCounter)
+    END IF
+  END SUBROUTINE write_to_record_rank2
       
   SUBROUTINE set_fill_value(OutFile, VarName, FillVal)
     !*## Purpose
