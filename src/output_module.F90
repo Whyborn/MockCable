@@ -5,15 +5,18 @@ MODULE output_module
   USE mpi_f08, ONLY: MPI_INFO_NULL
 #endif
   USE netcdf
-  USE common_module, ONLY: handle_ncstat
+  USE common_module, ONLY: handle_ncstat, agg_method, agg_mean, agg_sum,&
+                           agg_max, agg_min
   USE mpi_module, ONLY: mpi_grp_t
   USE domain_module, ONLY: ProcessDomain, GlobalDomain
 
   IMPLICIT NONE
 
-  PRIVATE :: TemporalAggregation, OnTimestep, Daily, Monthly, Yearly
+  ! -------------------------------------------------------------------------!
+  ! Data structures for handling NetCDF files
+  PRIVATE :: _WritePeriod, OnTimestep, Daily, Monthly, Yearly
   ENUM, BIND(C)
-    ENUMERATOR :: TemporalAggregation = 0
+    ENUMERATOR :: _WritePeriod = 0
     ENUMERATOR :: OnTimestep = 1
     ENUMERATOR :: Daily = 2
     ENUMERATOR :: Monthly = 3
@@ -35,15 +38,16 @@ MODULE output_module
     LOGICAL :: HasUnlimitedDimension
     INTEGER :: UnlimitedDimensionLength = 0
 
-    ! What type is temporal aggregation to use
-    INTEGER(KIND(TemporalAggregation)) :: AggregationType = 0
+    ! What type of temporal aggregation to use
+    INTEGER(KIND(_WritePeriod)) :: WritePeriod = 0
+    PROCEDURE(trigger_method), POINTER :: GetTrigger
 
     ! Variables
-    TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: Variables
+    CLASS(NCVariable), POINTER :: Variables
 
   END TYPE NCFile
 
-  TYPE NCVariable
+  TYPE, ABSTRACT :: NCVariable
     !*## Purpose
     !
     ! A derived type used to assist in output routines
@@ -57,24 +61,16 @@ MODULE output_module
     ! Aggregation counter and trigger
     INTEGER :: AggCounter = 0, Trigger
 
+    ! Aggregation method to use
+    PROCEDURE(agg_method), POINTER :: AggMethod
+
+    ! Accumulation variable
+    REAL, DIMENSION(:,:), ALLOCATABLE :: Values
+
   END TYPE NCVariable
 
-  TYPE, EXTENDS(NCVariable) :: RealNCVariable
-    !*## Purpose
-    !
-    ! A real instance of an NCVariable
-
-    REAL, DIMENSION(:,:), ALLOCATABLE :: AccumData
-  END TYPE RealNCVariable
-
-  TYPE, EXTENDS(NCVariable) :: IntNCVariable
-    !*## Purpose
-    !
-    ! A integer instance of an NCVariable
-
-    INTEGER, DIMENSION(:,:), ALLOCATABLE :: AccumData
-  END TYPE IntNCVariable
-
+  ! -------------------------------------------------------------------------!
+  ! Interfaces for handling writing to NetCDF files
   INTERFACE initialise_output_file
     MODULE PROCEDURE initialise_output_file_by_name
     MODULE PROCEDURE initialise_output_file_with_dimensions
@@ -129,7 +125,8 @@ CONTAINS
 
   END SUBROUTINE initialise_output_module
 
-  FUNCTION initialise_output_file_by_name(FileName) RESULT(OutFile, AggMethod)
+  FUNCTION initialise_output_file_by_name(FileName, WritePeriod)&
+      RESULT(OutFile)
     !*## Purpose
     !
     ! Initialise a new output file with the given name.
@@ -138,7 +135,7 @@ CONTAINS
     !
     ! Use NetCDF routines to open a file in parallel if necessary.
 
-    CHARACTER(LEN=*) :: FileName, AggMethod
+    CHARACTER(LEN=*) :: FileName, WritePeriod
     TYPE(NCFile) :: OutFile
 
     ! Old mode argument is required for NF90_SET_FILL
@@ -153,21 +150,21 @@ CONTAINS
 #endif
   
     ! Set the aggregation period
-    IF (PRESENT(AggMethod)) THEN
-      IF (AggMethod == "on_timestep") THEN
-        OutFile%AggregationType = OnTimestep
-      ELSEIF (AggMethod == "daily") THEN
-        OutFile%AggregationType = Daily
-      ELSEIF (AggMethod == "monthly") THEN
-        OutFile%AggregationType = Monthly
-      ELSEIF (AggMethod == "yearly") THEN
-        OutFile%AggregationType = Yearly
+    IF (PRESENT(WriteMethod)) THEN
+      IF (WritePeriod == "on_timestep") THEN
+        OutFile%WritePeriod = OnTimestep
+      ELSEIF (WritePeriod == "daily") THEN
+        OutFile%WritePeriod = Daily
+      ELSEIF (WritePeriod == "monthly") THEN
+        OutFile%WritePeriod = Monthly
+      ELSEIF (WritePeriod == "yearly") THEN
+        OutFile%WritePeriod = Yearly
       ELSE
         WRITE(ERROR_UNIT, '(A)') "Invalid option given for aggregation "//&
           "method in "//FileName
       END IF
     ELSE
-      OutFile%AggregationType = Daily
+      OutFile%WritePeriod = Daily
     END IF
 
     ! Set nofill mode
@@ -178,7 +175,7 @@ CONTAINS
   END FUNCTION initialise_output_file_by_name
 
   FUNCTION initialise_output_file_with_dimensions(FileName, DimNames,&
-    DimLengths, AggMethod) RESULT(OutFile)
+    DimLengths, WritePeriod) RESULT(OutFile)
     !*## Purpose
     !
     ! Initialise a new output file with the given name.
@@ -191,12 +188,12 @@ CONTAINS
     CHARACTER(LEN=*) :: FileName
     CHARACTER(LEN=*), DIMENSION(:) :: DimNames
     INTEGER, DIMENSION(:) :: DimLengths
-    CHARACTER(LEN=*), OPTIONAL :: AggMethod
+    CHARACTER(LEN=*), OPTIONAL :: WritePeriod
     TYPE(NCFile) :: OutFile
 
     ! Check that the aggregation method is valid
-    IF (PRESENT(AggregationMethod)) THEN
-      initialise_output_file_by_name(FileName, AggregationMethod)
+    IF (PRESENT(WritePeriod)) THEN
+      initialise_output_file_by_name(FileName, WritePeriod)
     ELSE
       initialise_output_file_by_name(FileName, "daily")
     END IF
@@ -275,7 +272,7 @@ CONTAINS
     INTEGER :: DimIter, FileDimIter, VarIter
 
     ! Possibly required temporary variables, if a resize is needed
-    TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: TempVariables
+    CLASS(NCVariable), DIMENSION(:), ALLOCATABLE :: TempVariables
 
     ! We need to set the start point for this set of variables
     INTEGER :: StartPoint
@@ -334,10 +331,12 @@ CONTAINS
       ! Set up the NCVariable
       ALLOCATE(OutFile%Variables(StartPoint + VarIter)%DimIDs(SIZE(VarNames)),&
         OutFile%Variables(StartPoint + VarIter)%DimNames(SIZE(VarNames)))
+      ALLOCATE(OutFile%Variables(StartPoint + VarIter)%AccumData
 
       OutFile%Variables(StartPoint + VarIter)%VarName = VarNames(VarIter)
       OutFile%Variables(StartPoint + VarIter)%DimNames = VarDims
       OutFile%Variables(StartPoint + VarIter)%DimIDs = VarDimIDs
+      
 
       ! Set the default fill value
       IF (DataType == NF90_FLOAT) THEN
@@ -658,18 +657,20 @@ CONTAINS
     ! If we've just triggered a write, then we need to determine the next
     ! trigger point
     IF (TargetVariable%AggCounter == 0) THEN
-      determine_aggregation_period(TargetVariable, Year, Step)
+      TargetVariable%Trigger = OutFile%GetTrigger(Year, Step, Timestep)
     END IF
 
     ! Accumulate the variable, and increment the counter
-    TargetVariable%AccumData = TargetVariable%AccumData + SourceData
+    TargetVariable%AggMethod(SourceData, TargetVariable%AccumData,&
+      TargetVariable%Trigger)
     TargetVariable%AggCounter = TargetVariable%AggCounter + 1
 
     ! If we reach our trigger value, add to the time dimension, write the
     ! record to file, reset the accumulator and work out the next trigger
-    IF (TargetVariable%AggCounter == TargetVariable%WriteTrigger) THEN
+    IF (TargetVariable%AggCounter == TargetVariable%Trigger) THEN
       put_record(Outfile, VarName, TargetVariable%AccumData /&
         TargetVariable%AggCounter)
+      TargetVariable%AggCounter = 0
     END IF
   END SUBROUTINE write_to_record_rank2
       
