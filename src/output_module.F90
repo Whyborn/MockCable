@@ -365,7 +365,7 @@ CONTAINS
 
     TYPE(NCFile), INTENT(IN) :: OutFile
     CHARACTER(LEN=*), INTENT(IN) :: DimName
-    CLASS(*), DIMENSION(:), INTENT(IN) :: SourceData
+    CLASS(*), DIMENSION(:), CONTIGUOUS, INTENT(IN) :: SourceData
 
     ! The target variable we're writing to
     TYPE(NCVariable) :: TargetVariable
@@ -397,6 +397,8 @@ CONTAINS
     TYPE IS (INTEGER)
       CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
         SourceData))
+    CLASS DEFAULT
+      WRITE(ERROR_UNIT,*) "Tried to write something not a number."
     END SELECT
 
   END SUBROUTINE put_dimension_data
@@ -442,6 +444,8 @@ CONTAINS
     TYPE IS (INTEGER)
       CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
         DimValue, START=[OutFile%UnlimitedDimensionLength+1]))
+    CLASS DEFAULT
+      WRITE(ERROR_UNIT,*) "Tried to write something not a number."
     END SELECT
 
     ! Increment the size of the unlimited dimension
@@ -462,7 +466,7 @@ CONTAINS
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
     CHARACTER(LEN=*), INTENT(IN) :: VarName
-    CLASS(*), DIMENSION(:,:), INTENT(IN) :: SourceData
+    CLASS(*), DIMENSION(:,:), CONTIGUOUS, INTENT(IN) :: SourceData
 
     ! The target variable we're writing to
     TYPE(NCVariable) :: TargetVariable
@@ -479,6 +483,8 @@ CONTAINS
     TYPE IS (INTEGER)
       CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
         SourceData, START=ProcDomain%ProcessDomainStart))
+    CLASS DEFAULT
+      WRITE(ERROR_UNIT,*) "Tried to write something not a number."
     END SELECT
 
   END SUBROUTINE put_variable_data_rank2
@@ -496,7 +502,7 @@ CONTAINS
 
     TYPE(NCFile), INTENT(INOUT) :: OutFile
     CHARACTER(LEN=*), INTENT(IN) :: VarName
-    CLASS(*), DIMENSION(:,:,:), INTENT(IN) :: SourceData
+    CLASS(*), DIMENSION(:,:,:), CONTIGUOUS, INTENT(IN) :: SourceData
     
     ! The target variable we're writing to
     TYPE(NCVariable) :: TargetVariable
@@ -526,6 +532,8 @@ CONTAINS
     TYPE IS (INTEGER)
       CALL handle_ncstat(NF90_PUT_VAR(OutFile%FileID, TargetVariable%VarID,&
         SourceData, START=DimStarts))
+    CLASS DEFAULT
+      WRITE(ERROR_UNIT,*) "Tried to write something not a number."
     END SELECT
 
   END SUBROUTINE put_variable_data_rank3
@@ -577,6 +585,8 @@ CONTAINS
         ProcDomain%ProcessDomainStart(2), OutFile%UnlimitedDimensionLength],&
         COUNT=[ProcDomain%ProcessDomainSize(1), ProcDomain%ProcessDomainSize(2),&
         1]))
+    CLASS DEFAULT
+      WRITE(ERROR_UNIT,*) "Tried to write something not a number."
     END SELECT
 
   END SUBROUTINE put_record_rank2
@@ -605,6 +615,8 @@ CONTAINS
     TYPE IS (INTEGER)
       CALL handle_ncstat(NF90_DEF_VAR_FILL(OutFile%FileID, TargetVariable%VarID,&
         0, FillVal))
+    CLASS DEFAULT
+      WRITE(ERROR_UNIT,*) "Tried to write something not a number."
     END SELECT
 
   END SUBROUTINE set_fill_value
