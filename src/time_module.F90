@@ -68,6 +68,33 @@ FUNCTION days_in_month(Month, Year)
   END IF
 END FUNCTION days_in_month
 
+FUNCTION month_from_day(Day, Year)
+  !*## Purpose
+  !
+  ! Determine which month we're in via the day
+
+  INTEGER :: Day, Year
+  INTEGER :: month_from_day
+  INTEGER, DIMENSION(12) :: DaysInMonth
+  INTEGER :: TotalDays, M
+
+  DaysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  IF (is_leapyear(Year)) THEN
+    DaysInMonth(2) = 29
+  END IF
+
+  TotalDays = 0
+  DO M = 1,12
+    TotalDays = TotalDays + DaysInMonth(M)
+    IF (TotalDays >= Day) THEN
+      EXIT
+    END IF
+  END DO
+
+  month_from_day = M
+
+END FUNCTION month_from_day
+
 FUNCTION is_leapyear(Year)
   !*## Purpose
   !
