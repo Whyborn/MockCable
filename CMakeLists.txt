@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24.2)
 
 project(
     MOCK_CABLE
-    LANGUAGES Fortran
+    LANGUAGES C Fortran
 )
 
 option(MOCK_CABLE_MPI "Build the MPI executable" OFF)
@@ -61,8 +61,23 @@ add_library(
     src/output_module.F90
     src/mpi_serial_stub_module.F90
     src/partition.F90
+    src/cable_netcdf.F90
+    src/cable_netcdf_stub_types.F90
+    src/cable_netcdf_internal.F90
+    src/cable_netcdf_nf90.F90
+    src/array_utils.F90
 )
-target_link_libraries(common PUBLIC PkgConfig::NETCDF $<$<BOOL:${MOCK_CABLE_MPI}>:MPI::MPI_Fortran>)
+if(MOCK_CABLE_PIO)
+    target_sources(common PRIVATE src/cable_netcdf_pio.F90)
+else()
+    target_sources(common PRIVATE src/cable_netcdf_pio_stub.F90)
+endif()
+target_link_libraries(common
+    PUBLIC
+        PkgConfig::NETCDF
+        $<$<BOOL:${MOCK_CABLE_MPI}>:MPI::MPI_Fortran>
+        $<$<BOOL:${MOCK_CABLE_PIO}>:PIO::PIO_Fortran>
+)
 
 if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
@@ -99,13 +114,20 @@ add_executable(
     test/simple4by4.F90
 )
 
+add_executable(
+    test-cable-netcdf-write-darray
+    test/test_cable_netcdf_write_darray.F90
+)
+
 target_link_libraries(mock-tests PRIVATE common ${fortuno_libs})
 target_link_libraries(mock-cable PRIVATE common)
 target_link_libraries(simple4by4 PRIVATE common)
+target_link_libraries(test-cable-netcdf-write-darray PRIVATE common)
 
 install(TARGETS mock-tests RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
+install(TARGETS test-cable-netcdf-write-darray RUNTIME)
 
 if(MOCK_CABLE_MPI)
     add_test(NAME mock-tests
