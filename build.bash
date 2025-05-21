@@ -4,14 +4,16 @@ show_help() {
    cat << EOF
 Options:
    -m, --mpi      Compile with MPI
+   -p, --pio      Compile with PIO
    -h, --help     Show help
 EOF
 }
 
 . /etc/bashrc
 
-cmake_args=(-DMOCK_CABLE_MPI="OFF")
+cmake_args=(-DMOCK_CABLE_MPI="OFF" -DMOCK_CABLE_PIO="OFF")
 mpi=0
+pio=0
 
 # Argument parsing adapted and stolen from http://mywiki.wooledge.org/BashFAQ/035#Complex_nonstandard_add-on_utilities
 while [ ${#} -gt 0 ]; do
@@ -19,6 +21,10 @@ while [ ${#} -gt 0 ]; do
       -m|--mpi)
          cmake_args+=(-DMOCK_CABLE_MPI="ON")
          mpi=1
+         ;;
+      -p|--pio)
+         cmake_args+=(-DMOCK_CABLE_PIO="ON")
+         pio=1
          ;;
       -h|--help)
          show_help
@@ -48,6 +54,10 @@ if module is-loaded openmpi; then
     prepend_path CMAKE_PREFIX_PATH "${OPENMPI_BASE}/include/Intel"
 fi
 
+if [ ${pio} -eq 1 ]; then
+    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/parallelio_install"
+    prepend_path LD_RUN_PATH "/g/data/tm70/sb8430/parallelio_install/lib"
+fi
 
 cmake -S . -B build "${cmake_args[@]}"
 cmake --build build

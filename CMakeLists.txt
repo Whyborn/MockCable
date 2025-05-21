@@ -7,10 +7,14 @@ project(
 )
 
 option(MOCK_CABLE_MPI "Build the MPI executable" OFF)
+option(MOCK_CABLE_PIO "Build with PIO" OFF)
 
 # third party libs
 if(MOCK_CABLE_MPI)
     find_package(MPI REQUIRED COMPONENTS Fortran)
+endif()
+if(MOCK_CABLE_PIO)
+    find_package(PIO REQUIRED COMPONENTS Fortran)
 endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
@@ -40,6 +44,15 @@ target_link_libraries(common PUBLIC PkgConfig::NETCDF $<$<BOOL:${MOCK_CABLE_MPI}
 
 if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
+endif()
+
+if(MOCK_CABLE_PIO)
+    add_executable(
+        examplePio
+        test/examplePio.F90
+    )
+    target_link_libraries(examplePio PRIVATE MPI::MPI_Fortran PIO::PIO_Fortran)
+    install(TARGETS examplePio RUNTIME)
 endif()
 
 add_executable(
