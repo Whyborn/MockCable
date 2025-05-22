@@ -53,6 +53,12 @@ if(MOCK_CABLE_PIO)
     )
     target_link_libraries(examplePio PRIVATE MPI::MPI_Fortran PIO::PIO_Fortran)
     install(TARGETS examplePio RUNTIME)
+    add_executable(
+        pio4by4write
+        test/pio4by4write.F90
+    )
+    target_link_libraries(pio4by4write PRIVATE common PIO::PIO_Fortran)
+    install(TARGETS pio4by4write RUNTIME)
 endif()
 
 add_executable(
