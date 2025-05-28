@@ -318,6 +318,52 @@ CONTAINS
     Trigger = SecsInDay * DaysInYear / Timestep
   END FUNCTION monthly_trigger
     
+  TYPE, ABSTRACT :: Aggregator
+    INTEGER :: Trigger, Counter = 0
+  CONTAINS
+    PROCEDURE :: accumulate_data
+    PROCEDURE(accumulate_array_data), DEFERRED :: accumulate_array_data
+    PROCEDURE, POINTER :: get_trigger
+  END TYPE Aggregator
+
+  TYPE, EXTENDS(Aggregator) :: Aggregator1D
+    REAL, ALLOCATABLE :: DataAccum(:)
+  CONTAINS
+    PROCEDURE, POINTER :: accumulate_array_data
+  END TYPE Aggregator1D
+
+  TYPE, EXTENDS(Aggregator) :: Aggregator2D
+    REAL, ALLOCTABLE :: DataAccum(:,:)
+  CONTAINS
+    PROCEDURE, POINTER :: accumulate_array_data
+  END TYPE Aggregator1D
+
+  FUNCTION accumulate_data(this, CurrentData, Year, Step) RESULT(IsTriggered)
+    CLASS(Aggregator), INTENT(INOUT) :: this
+    REAL, DIMENSION(..), INTENT(IN) :: CurrentData
+    INTEGER, INTENT(IN) :: Year, Step
+    LOGICAL :: IsTriggered
+
+    ! By default, the accumulator is not triggered
+    IsTriggered = .FALSE.
+
+    ! Set the next trigger point
+    IF (AggHandler%Counter == 0) THEN
+      AggHandler%get_trigger(Year, Step)
+    END IF
+
+    ! Accumulate the array
+    AggHandler%accumulate_array_data(CurrentData)
+    AggHandler%Counter = AggHandler%Counter + 1
+    ! Check if we hit the trigger
+    IF (AggHandler%Counter == AggHandler%Trigger) THEN
+      AggHandler%Counter = 0
+      IsTriggered = .TRUE.
+    END IF
+
+  END FUNCTION accumulate_data
+
+
   ABSTRACT INTERFACE
     SUBROUTINE agg_method(StepData, AccumData, AccumPeriod)
       REAL, DIMENSION(:,:), INTENT(IN) :: StepData

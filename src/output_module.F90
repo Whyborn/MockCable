@@ -14,6 +14,8 @@ MODULE output_module
 
   ! -------------------------------------------------------------------------!
   ! Data structures for handling NetCDF files
+
+  ! Over what time period is the data aggregated?
   PRIVATE :: _WritePeriod, OnTimestep, Daily, Monthly, Yearly
   ENUM, BIND(C)
     ENUMERATOR :: _WritePeriod = 0
@@ -23,6 +25,14 @@ MODULE output_module
     ENUMERATOR :: Yearly = 4
   END ENUM
     
+  ! What grid type are we outputting on
+  PRIVATE :: _GridType, Spatial, Vector
+  ENUM, BIND(C)
+    ENUMERATOR :: _GridType = 0
+    ENUMERATOR :: Spatial = 1
+    ENUMERATOR :: Vector = 2
+  END ENUM
+
   TYPE NCFile
     !*## Purpose
     !
@@ -30,42 +40,41 @@ MODULE output_module
     INTEGER :: FileID
 
     ! Dimensions
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
-    INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
-    INTEGER, DIMENSION(:), ALLOCATABLE :: DimLengths
-
-    ! Handling for unlimited dimensions
-    LOGICAL :: HasUnlimitedDimension
-    INTEGER :: UnlimitedDimensionLength = 0
-
-    ! What type of temporal aggregation to use
-    INTEGER(KIND(_WritePeriod)) :: WritePeriod = 0
-    PROCEDURE(trigger_method), POINTER :: GetTrigger
+    TYPE(NCDimension), DIMENSION(:), ALLOCATABLE :: Dimensions
 
     ! Variables
     CLASS(NCVariable), POINTER :: Variables
 
+    ! What type of temporal aggregation to use
+    INTEGER(KIND(_WritePeriod)) :: WritePeriod = 0
+
   END TYPE NCFile
 
-  TYPE, ABSTRACT :: NCVariable
+  TYPE NCDimension
     !*## Purpose
     !
-    ! A derived type used to assist in output routines
+    ! A convenience wrapper for NetCDF dimensions.
+
+    CHARACTER(LEN=20) :: DimName
+    INTEGER :: DimID
+    INTEGER :: DimLength
+    LOGICAL :: IsUnlimited = .FALSE.
+  
+  END TYPE NCDimension
+
+  TYPE :: NCVariable
+    !*## Purpose
+    !
+    ! A convenience wrapper for NetCDF variables
+
     INTEGER :: VarID
     CHARACTER(LEN=50) :: VarName
 
-    ! Dimension names and IDs
-    CHARACTER(LEN=20), DIMENSION(:), ALLOCATABLE :: DimNames
-    INTEGER, DIMENSION(:), ALLOCATABLE :: DimIDs
+    ! Associated dimensions- point to the original copies attached to the file
+    TYPE(NCDimension), DIMENSION(:), POINTER :: Dims
 
-    ! Aggregation counter and trigger
-    INTEGER :: AggCounter = 0, Trigger
-
-    ! Aggregation method to use
-    PROCEDURE(agg_method), POINTER :: AggMethod
-
-    ! Accumulation variable
-    REAL, DIMENSION(:,:), ALLOCATABLE :: Values
+    ! Data aggregator
+    CLASS(Aggregator), ALLOCATABLE :: DataAggregator
 
   END TYPE NCVariable
 
@@ -101,6 +110,7 @@ MODULE output_module
   ! Store information about the MPI configuration
   TYPE(ProcessDomain), PRIVATE :: ProcDomain
   TYPE(mpi_grp_t), PRIVATE :: mpi_grp
+  INTEGER(KIND(_GridType)) :: GridType
   
   ! The default fill values for each type
   REAL :: DefaultFloatFillVal = NF90_FILL_REAL
@@ -108,7 +118,7 @@ MODULE output_module
 
 CONTAINS
 
-  SUBROUTINE initialise_output_module(ProcDomainIn, mpi_grp_in)
+  SUBROUTINE initialise_output_module(ProcDomainIn, mpi_grp_in, GridTypeIn)
     !*## Purpose
     !
     ! Set up the output module for future writing
@@ -119,9 +129,20 @@ CONTAINS
 
     TYPE(ProcessDomain), INTENT(INOUT) :: ProcDomainIn
     TYPE(mpi_grp_t), INTENT(INOUT) :: mpi_grp_in
+    CHARACTER(LEN=*), OPTIONAL :: GridTypeIn
 
     ProcDomain = ProcDomainIn
     mpi_grp = mpi_grp_in
+
+    IF PRESENT(GridTypeIn) THEN
+      IF (TRIM(GridTypeIn) == "spatial") THEN
+        GridType = Spatial
+      ELSEIF (TRIM(GridTypeIn) == "vector") THEN
+        GridType = Vector
+      ELSE
+        WRITE(ERROR_UNIT,'(A)') GridTypeIn//" is not a valid grid type."
+        EXIT -1
+      END IF
 
   END SUBROUTINE initialise_output_module
 
@@ -150,21 +171,17 @@ CONTAINS
 #endif
   
     ! Set the aggregation period
-    IF (PRESENT(WriteMethod)) THEN
-      IF (WritePeriod == "on_timestep") THEN
-        OutFile%WritePeriod = OnTimestep
-      ELSEIF (WritePeriod == "daily") THEN
-        OutFile%WritePeriod = Daily
-      ELSEIF (WritePeriod == "monthly") THEN
-        OutFile%WritePeriod = Monthly
-      ELSEIF (WritePeriod == "yearly") THEN
-        OutFile%WritePeriod = Yearly
-      ELSE
-        WRITE(ERROR_UNIT, '(A)') "Invalid option given for aggregation "//&
-          "method in "//FileName
-      END IF
-    ELSE
+    IF (WritePeriod == "timestep") THEN
+      OutFile%WritePeriod = OnTimestep
+    ELSEIF (WritePeriod == "daily") THEN
       OutFile%WritePeriod = Daily
+    ELSEIF (WritePeriod == "monthly") THEN
+      OutFile%WritePeriod = Monthly
+    ELSEIF (WritePeriod == "yearly") THEN
+      OutFile%WritePeriod = Yearly
+    ELSE
+      WRITE(ERROR_UNIT, '(A)') "Invalid option given for aggregation "//&
+        "method in "//FileName
     END IF
 
     ! Set nofill mode
@@ -188,15 +205,11 @@ CONTAINS
     CHARACTER(LEN=*) :: FileName
     CHARACTER(LEN=*), DIMENSION(:) :: DimNames
     INTEGER, DIMENSION(:) :: DimLengths
-    CHARACTER(LEN=*), OPTIONAL :: WritePeriod
+    CHARACTER(LEN=*) :: WritePeriod
     TYPE(NCFile) :: OutFile
 
     ! Check that the aggregation method is valid
-    IF (PRESENT(WritePeriod)) THEN
-      initialise_output_file_by_name(FileName, WritePeriod)
-    ELSE
-      initialise_output_file_by_name(FileName, "daily")
-    END IF
+    initialise_output_file_by_name(FileName, WritePeriod)
 
     ! Initialise the file
     OutFile = initialise_output_file_by_name(FileName)
@@ -232,20 +245,26 @@ CONTAINS
     CALL handle_ncstat(NF90_REDEF(OutFile%FileID))
 
     ! Allocate memory for the derived type names
-    ALLOCATE(OutFile%DimNames(SIZE(DimNames)))
-    ALLOCATE(OutFile%DimIDs(SIZE(DimNames)))
-    ALLOCATE(OutFile%DimLengths(SIZE(DimLengths)))
+    ALLOCATE(OutFile%Dimensions(SIZE(DimNames)))
 
     ! Run through the passed dimensions
     DO DimIter = 1, SIZE(DimNames)
-      CALL handle_ncstat(NF90_DEF_DIM(OutFile%FileID, TRIM(DimNames(DimIter)),&
-        DimLengths(DimIter), OutFile%DimIDs(DimIter)))
 
-      OutFile%DimNames(DimIter) = DimNames(DimIter)
-      OutFile%DimLengths(DimIter) = DimLengths(DimIter)
+      ! Set the name of the dimension
+      OutFile%Dimensions(DimIter)%DimName = DimNames(DimIter)
+
+      ! Define the dimension and attach the ID to the variable
+      CALL handle_ncstat(NF90_DEF_DIM(OutFile%FileID, TRIM(DimNames(DimIter)),&
+        DimLengths(DimIter), OutFile%Dimensions(DimIter)%DimID))
 
       IF (DimLengths(DimIter) == NF90_UNLIMITED) THEN
-        OutFile%HasUnlimitedDimension = .TRUE.
+        OutFile%Dimensions(DimIter)%IsUnlimited = .TRUE.
+        ! Initialise unlimited dimensions with length 0, as we want to append
+        ! to it over time
+        OutFile%Dimensions(DimIter)%DimLength = 0
+      ELSE
+        ! Otherwise, set it to the specified length
+        OutFile%Dimensions(DimIter)%DimLength = DimLengths(DimIter)
       END IF
     END DO
 
@@ -257,7 +276,15 @@ CONTAINS
   SUBROUTINE def_variables_multiple_dims(OutFile, VarNames, VarDims, DataType)
     !*## Purpose
     !
-    ! Add a variable to the NetCDF file.
+    ! Add a set of variables to the NetCDF file. The variables are specified by
+    ! VarNames, and each must have the same dimensions and data type specified
+    ! by VarDims and DataType.
+    !
+    ! For example, for a NetCDF file with dimensions (patch, lon, lat, time), a
+    ! set of real variables can be added via
+    !
+    ! ```def_variables(NCFile, ["GPP", "NPP", "LAI"], ["patch", "lon", "lat",
+    ! "time"], NF90_REAL)```
     !
     !## Method
     !
@@ -272,13 +299,13 @@ CONTAINS
     INTEGER :: DimIter, FileDimIter, VarIter
 
     ! Possibly required temporary variables, if a resize is needed
-    CLASS(NCVariable), DIMENSION(:), ALLOCATABLE :: TempVariables
+    TYPE(NCVariable), DIMENSION(:), ALLOCATABLE :: TempVariables
 
     ! We need to set the start point for this set of variables
     INTEGER :: StartPoint
 
     ! Store inferred DimIDs
-    INTEGER, DIMENSION(:), ALLOCATABLE :: VarDimIDs
+    TYPE(NCDimensions), DIMENSION(:), POINTER :: VarDimsT 
 
     ! Set the file to definition mode
     CALL handle_ncstat(NF90_REDEF(OutFile%FileID))
@@ -307,16 +334,32 @@ CONTAINS
       StartPoint = 0
     END IF
 
-    ! First determine the dimensions IDs
-    ALLOCATE(VarDimIDs(SIZE(VarDims)))
+    ! First determine the dimensions IDs, which will be reused for every
+    ! variable
+    ALLOCATE(VarDimsT(SIZE(VarDims)))
+
+    ! First iterate through each of the specified dimensions, then check the
+    ! name against the dimensions existing in the NetCDF file.
     VariableDims: DO DimIter = 1, SIZE(VarDims)
-      FileDims: DO FileDimIter = 1, SIZE(OutFile%DimNames)
-        IF (TRIM(VarDims(DimIter)) == TRIM(OutFile%DimNames(FileDimIter))) THEN
-          VarDimIDs(DimIter) = OutFile%DimIDs(FileDimIter)
+      FileDims: DO FileDim = 1, SIZE(OutFile%Dimensions)
+        IF (TRIM(VarDims(DimIter)) ==&
+          TRIM(OutFile%Dimensions(FileDim)%DimName)) THEN
+          VarDimsT(DimIter) => OutFile%Dimensions(FileDimIter)
           EXIT FileDims
         END IF
       END DO FileDims
     END DO VariableDims
+
+    ! Determine which dimensions to initialise the aggregator with.
+    ! We make the stipulation that the order of dimensions MUST be
+    ! [TileDimensions..., SpaceDimensions, TimeDimension] where
+    ! TileDimensions are dimensions on the grid cell e.g. soil layer, PFT;
+    ! SpaceDimensions are either [Lon, Lat] or [Land]. Based on this
+    ! information, we can infer the size of the aggregator array
+
+    IF (GridType == Spatial) THEN
+
+    
 
     ! Now we know the dimension IDs of each of the desired dimensions
     DO VarIter = 1, SIZE(VarNames)
@@ -328,9 +371,16 @@ CONTAINS
         OutFile%Variables(StartPoint + VarIter)%VarID, NF90_COLLECTIVE))
 #endif
 
-      ! Set up the NCVariable
+      ! Set up the NCVariable- for each variable, assign the dimension ID and
+      ! name arrays, and initialise the aggregator
       ALLOCATE(OutFile%Variables(StartPoint + VarIter)%DimIDs(SIZE(VarNames)),&
         OutFile%Variables(StartPoint + VarIter)%DimNames(SIZE(VarNames)))
+
+      ! We make the stipulation that the order of dimensions MUST be
+      ! [TileDimensions..., SpaceDimensions, TimeDimension] where
+      ! TileDimensions are dimensions on the grid cell e.g. soil layer, PFT;
+      ! SpaceDimensions are either [Lon, Lat] or [Land]. Based on this
+      ! information, we can infer the size of the aggregator array
       ALLOCATE(OutFile%Variables(StartPoint + VarIter)%AccumData
 
       OutFile%Variables(StartPoint + VarIter)%VarName = VarNames(VarIter)
