@@ -72,6 +72,7 @@ add_executable(
     mock-tests
     test/mock_tests.F90
     test/test_common.F90
+    test/test_time.F90
 )
 if (MOCK_CABLE_MPI)
   target_sources(mock-tests PRIVATE test/fortuno_interface_mpi.f90)
@@ -117,19 +118,19 @@ install(TARGETS mock-tests RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
 
-# Register tests
-foreach (test IN ITEMS
-    "common/test_sort"
-    "common/test_approx_equal"
+# Register tests by suite
+foreach (testsuite IN ITEMS
+    "common"
+    "time"
     )
     if(MOCK_CABLE_MPI)
-        add_test(NAME ${test}
-            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ${test}
+        add_test(NAME ${testsuite}
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ${testsuite}
         )
-        set_tests_properties(${test} PROPERTIES PROCESSORS 1)
+        set_tests_properties(${testsuite} PROPERTIES PROCESSORS 1)
     else()
-        add_test(NAME ${test}
-            COMMAND $<TARGET_FILE:mock-tests> ${test}
+        add_test(NAME ${testsuite}
+            COMMAND $<TARGET_FILE:mock-tests> ${testsuite}
         )
     endif()
 endforeach ()

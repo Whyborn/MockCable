@@ -1,6 +1,6 @@
 MODULE common_tests
   
-  USE fortuno_interface_m, ONLY: CHECK, test_list, suite
+  USE fortuno_interface_m, ONLY: CHECK
   USE common_module, ONLY: sort, approx_equal,&
     find_largest_element_less_than_sorted
 
@@ -56,7 +56,7 @@ CONTAINS
         Success = .FALSE.
       END IF
     END DO
-    CALL check(Success)
+    CALL CHECK(Success)
       
     ! Now check the int
     Success = .TRUE.
@@ -66,7 +66,7 @@ CONTAINS
         Success = .FALSE.
       END IF
     END DO
-    CALL check(Success)
+    CALL CHECK(Success)
 
   END SUBROUTINE test_sort
 
@@ -84,30 +84,31 @@ CONTAINS
     LargeDelta = 1.0e-3
     SmallDelta = 1.0e-5
 
-    CALL check(approx_equal(Base, Base + LargeDelta, 1e-2) == .TRUE.)
-    CALL check(approx_equal(Base, Base + SmallDelta) == .TRUE.)
-    CALL check(approx_equal(Base, Base - SmallDelta) == .TRUE.)
-    CALL check(approx_equal(Base, Base + LargeDelta) == .FALSE.)
+    CALL CHECK(approx_equal(Base, Base + LargeDelta, 1e-2) == .TRUE.)
+    CALL CHECK(approx_equal(Base, Base + SmallDelta) == .TRUE.)
+    CALL CHECK(approx_equal(Base, Base - SmallDelta) == .TRUE.)
+    CALL CHECK(approx_equal(Base, Base + LargeDelta) == .FALSE.)
 
   END SUBROUTINE test_approx_equal
 
-!SUBROUTINE test_find_largest_element_less_than_sorted()
-  !INTEGER, DIMENSION(10) :: vSimple = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  !INTEGER, DIMENSION(8) :: vDup = [1, 2, 2, 4, 5, 6, 6, 10]
-  !INTEGER :: UpperLimit = 3
-  !INTEGER :: vSimpleAns, vDupAns
+SUBROUTINE test_find_largest_less_than()
+  !*## Purpose
+  !
+  ! Check the routine used to find the largest element in a sorted array less
+  ! than a given value.
 
-  !vSimpleAns = find_largest_element_less_than_sorted(vSimple, UpperLimit)
-  !vDupAns = find_largest_element_less_than_sorted(vDup, UpperLimit)
+  INTEGER, DIMENSION(10) :: vSimple = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  INTEGER, DIMENSION(8) :: vDup = [1, 2, 2, 4, 5, 6, 6, 10]
+  INTEGER :: UpperLimit = 3
+  INTEGER :: vSimpleAns, vDupAns
 
-  !IF (vSimpleAns /= 2) THEN
-    !WRITE(*,*) "Find largest test 1 failed"
-    !WRITE(*,*) "Computed result is:", vSimpleAns
-  !END IF
+  vSimpleAns = find_largest_element_less_than_sorted(vSimple, UpperLimit)
+  vDupAns = find_largest_element_less_than_sorted(vDup, UpperLimit)
 
-  !IF (vDupAns /= 3) THEN
-    !WRITE(*,*) "Find largest test 2 failed"
-  !END IF
-!END SUBROUTINE test_find_largest_element_less_than_sorted
+  WRITE(*,*) "vSimpleAns:", vSimpleAns, "vDupAns:", vDupAns
+  CALL CHECK(vSimpleAns == 2)
+  CALL CHECK(vDupAns == 3)
+
+END SUBROUTINE test_find_largest_less_than
 
 END MODULE common_tests
