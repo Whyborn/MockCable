@@ -84,10 +84,10 @@ CONTAINS
     LargeDelta = 1.0e-3
     SmallDelta = 1.0e-5
 
-    CALL CHECK(approx_equal(Base, Base + LargeDelta, 1e-2) == .TRUE.)
-    CALL CHECK(approx_equal(Base, Base + SmallDelta) == .TRUE.)
-    CALL CHECK(approx_equal(Base, Base - SmallDelta) == .TRUE.)
-    CALL CHECK(approx_equal(Base, Base + LargeDelta) == .FALSE.)
+    CALL CHECK(approx_equal(Base, Base + LargeDelta, 1e-2))
+    CALL CHECK(approx_equal(Base, Base + SmallDelta))
+    CALL CHECK(approx_equal(Base, Base - SmallDelta))
+    CALL CHECK(.not. approx_equal(Base, Base + LargeDelta))
 
   END SUBROUTINE test_approx_equal
 

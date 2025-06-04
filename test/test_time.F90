@@ -24,7 +24,7 @@ CONTAINS
     ExpectedDaysMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
     ! Run through the various tests
-    Success = (is_leapyear(Year) == .FALSE.)
+    Success = .not. is_leapyear(Year)
     CALL CHECK(Success)
 
     Success = (leap_day(Year) == 0)
@@ -33,7 +33,7 @@ CONTAINS
     Success = (days_in_year(Year) == ExpectedDaysYear)
     CALL CHECK(Success)
 
-    ExpectedDaysMonth = [(days_in_month(m, Year), m = 1, 12)]
+    DaysMonth = [(days_in_month(m, Year), m = 1, 12)]
     Success = (ALL(DaysMonth == ExpectedDaysMonth))
     CALL CHECK(Success)
 
@@ -43,7 +43,7 @@ CONTAINS
     ExpectedDaysMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
     ! Run through the various tests
-    Success = (is_leapyear(Year) == .TRUE.)
+    Success = is_leapyear(Year)
     CALL CHECK(Success)
 
     Success = (leap_day(Year) == 1)
@@ -52,7 +52,7 @@ CONTAINS
     Success = (days_in_year(Year) == ExpectedDaysYear)
     CALL CHECK(Success)
 
-    ExpectedDaysMonth = [(days_in_month(m, Year), m = 1, 12)]
+    DaysMonth = [(days_in_month(m, Year), m = 1, 12)]
     Success = (ALL(DaysMonth == ExpectedDaysMonth))
     CALL CHECK(Success)
 
@@ -64,7 +64,7 @@ CONTAINS
     ExpectedDaysMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
     ! Run through the various tests
-    Success = (is_leapyear(Year) == .FALSE.)
+    Success = (.not. is_leapyear(Year))
     CALL CHECK(Success)
 
     Success = (leap_day(Year) == 0)
@@ -73,7 +73,7 @@ CONTAINS
     Success = (days_in_year(Year) == ExpectedDaysYear)
     CALL CHECK(Success)
 
-    ExpectedDaysMonth = [(days_in_month(m, Year), m = 1, 12)]
+    DaysMonth = [(days_in_month(m, Year), m = 1, 12)]
     Success = (ALL(DaysMonth == ExpectedDaysMonth))
     CALL CHECK(Success)
 
