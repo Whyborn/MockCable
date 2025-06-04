@@ -105,7 +105,6 @@ SUBROUTINE test_find_largest_less_than()
   vSimpleAns = find_largest_element_less_than_sorted(vSimple, UpperLimit)
   vDupAns = find_largest_element_less_than_sorted(vDup, UpperLimit)
 
-  WRITE(*,*) "vSimpleAns:", vSimpleAns, "vDupAns:", vDupAns
   CALL CHECK(vSimpleAns == 2)
   CALL CHECK(vDupAns == 3)
 
