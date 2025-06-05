@@ -110,20 +110,11 @@ add_executable(
     test/simple4by4.F90
 )
 
-#target_link_libraries(test-common PRIVATE common PkgConfig::NETCDF)
 target_link_libraries(mock-tests PRIVATE common ${fortuno_libs})
-#target_link_libraries(test-output PRIVATE common)
-#target_link_libraries(test-datasetreader PRIVATE common)
 target_link_libraries(mock-cable PRIVATE common)
 target_link_libraries(simple4by4 PRIVATE common)
 
-#target_link_libraries(mock-tests PRIVATE common ${fortuno_libs} $<$<BOOL:${MPI}>:MPI::MPI_Fortran> PkgConfig::NETCDF)
-
-#install(TARGETS test-common RUNTIME)
 install(TARGETS mock-tests RUNTIME)
-#install(TARGETS test-common RUNTIME)
-#install(TARGETS test-output RUNTIME)
-#install(TARGETS test-datasetreader RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
 
