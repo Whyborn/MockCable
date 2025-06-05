@@ -2,9 +2,11 @@ MODULE datasetreader_module
 
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
 #ifdef __MPI__
-  USE mpi_f08, ONLY: MPI_INFO_NULL
+USE mpi_f08, ONLY: MPI_INFO_NULL, MPI_Info, MPI_Info_create
+#else
+USE mpi_serial_stub_module, ONLY: MPI_Info
 #endif
-USE mpi_module, ONLY: mpi_grp_t
+USE mpi_module, ONLY: mpi_grp_t, mpi_info_hints_t, mpi_info_set_hints
 USE netcdf
 USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
@@ -54,24 +56,24 @@ TYPE DatasetReader
   REAL, DIMENSION(:,:), ALLOCATABLE :: DataStorage
 END TYPE DatasetReader
 
+type(mpi_info_hints_t) :: mpi_info_hints_read
+
 CONTAINS
 
-FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
+FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
     StepSize, ProcDomain, mpi_grp) RESULT(NewReader)
   !*## Purpose
   !
-  ! Initialise a new dataset reader using the provided file template and attach
-  ! the given set of variable names.
+  ! Initialise a new datasetreader, which contains data on the same time
+  ! interval as the simulation.
   !
   !## Method
   !
-  ! Treat the FileTemplate like a glob string with 'find FileTemplate -type f,l'
-  ! to get a list of all the files (and symlinks) matching the template. Sort 
-  ! these files by their temporal order by inspecting the time variable.
-  ! Attach an array of  ! possible netCDF variables to search by when retrieving
-  ! variable data. Finally, mark the reader as active for future operations.
+  ! Take a list of files contained in the passed text file,
+  ! and use them to form a reader that transparently indexes the dataset in the
+  ! correct location when called with a year and timestep within said year.
 
-  CHARACTER(LEN=*), INTENT(IN) :: FileTemplate
+  CHARACTER(LEN=*), INTENT(IN) :: TextFileList
   CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
   REAL, INTENT(IN) :: StepSize
   TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
@@ -82,50 +84,47 @@ FUNCTION initialise_datasetreader_at_timestep(FileTemplate, VarNames,&
   ! Array to hold all the file names contained in the specified file
   CHARACTER(LEN=250), DIMENSION(:), ALLOCATABLE :: ListOfFiles
 
-  ! Only initialise if the FileTemplate is not an empty string
-  IF (.NOT. TRIM(FileTemplate) == "") THEN
-    ! First, retrieve the set of filenames matching the template
-    ListOfFiles = glob_files(FileTemplate)
+  NewReader%mpi_grp = mpi_grp
 
-    ! Now sort them by their starting data and attach it to the Reader
-    NewReader%DatasetFiles = sort_by_start_date(ListOfFiles)
+  ! Get the list of files in the dataset from the text file
+  ListOfFiles = get_files_from_text(TextFileList)
 
-    ! To correctly retrieve indices later, we need to know at what year the
-    ! dataset begins.
-    CALL identify_start_year(NewReader)
+  ! Now sort them by their starting data and attach it to the Reader
+  NewReader%DatasetFiles = sort_by_start_date(ListOfFiles, mpi_grp)
 
-    ! Now we have a sorted list, it's easier to assign indices to each
-    ! of the files in the dataset
-    NewReader%IndexRange = assign_file_indices(NewReader%DatasetFiles)
+  ! To correctly retrieve indices later, we need to know at what year the
+  ! dataset begins.
+  CALL identify_start_year(NewReader)
 
-    ! Attach the timestep and variables
-    NewReader%VarNames = VarNames
-    NewReader%TimestepSize = INT(StepSize)
+  ! Now we have a sorted list, it's easier to assign indices to each
+  ! of the files in the dataset
+  NewReader%IndexRange = assign_file_indices(NewReader%DatasetFiles)
 
-    ! Prepare the process information
-    NewReader%mpi_grp = mpi_grp
-    NewReader%Starts = ProcDomain%ProcessDomainStart
-    ALLOCATE(NewReader%DataStorage(ProcDomain%ProcessDomainSize(1),&
-      ProcDomain%ProcessDomainSize(2)))
+  ! Attach the timestep and variables
+  NewReader%VarNames = VarNames
+  NewReader%TimestepSize = INT(StepSize)
 
-    ! To avoid any first call annoyances, we will set the first file in the
-    ! dataset as the 'active' file and retrieve the desired variable ID.
-    CALL mark_as_active(NewReader)
-  END IF
+  ! Prepare the process information
+  NewReader%Starts = ProcDomain%ProcessDomainStart
+  ALLOCATE(NewReader%DataStorage(ProcDomain%ProcessDomainSize(1),&
+    ProcDomain%ProcessDomainSize(2)))
+
+  ! To avoid any first call annoyances, we will set the first file in the
+  ! dataset as the 'active' file and retrieve the desired variable ID.
+  CALL mark_as_active(NewReader)
 
 END FUNCTION initialise_datasetreader_at_timestep
 
-FUNCTION glob_files(InputFileList) RESULT(ListOfFiles)
+FUNCTION get_files_from_text(InputFileList) RESULT(ListOfFiles)
   !*## Purpose
   !
-  ! Returns an array of all files matching the given template, similar to 
-  ! Python/R versions.
+  ! Extract the list of files from the text file and return as an array of
+  ! characters.
   !
   !## Method
   !
-  ! Passes the FileTemplate to the unix command 'find FileTemplate -type f' for
-  ! bash terminals and pipes the result to a temporary file. Reads the temporary
-  ! file back in to construct an array of file names.
+  ! Count the number of lines in the file, then allocate an array of that size
+  ! and write the list of files to the array.
 
   CHARACTER(LEN=*), INTENT(IN) :: InputFileList
 
@@ -135,6 +134,7 @@ FUNCTION glob_files(InputFileList) RESULT(ListOfFiles)
   ! to save us having to read the file twice
   CHARACTER(LEN=250), DIMENSION(1000) :: TempListOfFiles
   INTEGER :: LineCounter, ios, FileUnit
+  CHARACTER(LEN=100) :: ioMessage
 
   ! The user has given a text file containing the list of files to include
   OPEN(NEWUNIT=FileUnit, FILE=InputFileList, IOSTAT=ios)
@@ -143,25 +143,26 @@ FUNCTION glob_files(InputFileList) RESULT(ListOfFiles)
   ! limit to the number of files we could possibly have in a dataset reader
   ReadFilenames: DO LineCounter = 1, 1000
     ! Read a line from the file into the temporary array
-    READ(FileUnit, '(A)', IOSTAT=ios) TempListOfFiles(LineCounter)
+    READ(FileUnit, '(A)', IOSTAT=ios, IOMSG=ioMessage)&
+      TempListOfFiles(LineCounter)
 
     IF (ios < 0) THEN
       ! Read reached EOF
       EXIT ReadFilenames
     ELSEIF (ios /= 0) THEN
       ! Something else went wrong
-      WRITE(ERROR_UNIT,*) 'Reading the list of files in the DatasetReader '//&
-        'failed.'
+      WRITE(ERROR_UNIT,'(A)') 'Error reading list of files in DatasetReader. '&
+        //'Error message is:'//ioMessage
       STOP ios
     END IF
   END DO ReadFileNames
 
-  ! Finished reading the file- decrement LineCounter by 1, since we added one on
+  ! Finished reading the file- decrement LineCounter by 1, since we added 1 on
   ! the EOF read
   LineCounter = LineCounter - 1
 
   IF (LineCounter == 0) THEN
-    WRITE(ERROR_UNIT,*) 'Glob returned zero files.'
+    WRITE(ERROR_UNIT,'(A)') 'No NetCDF files were found in the text file.'
 
     STOP 1
   END IF
@@ -171,9 +172,9 @@ FUNCTION glob_files(InputFileList) RESULT(ListOfFiles)
   ALLOCATE(ListOfFiles(LineCounter))
   ListOfFiles(:) = TempListOfFiles(1:LineCounter)
 
-END FUNCTION glob_files
+END FUNCTION get_files_from_text
   
-FUNCTION sort_by_start_date(ListOfFiles) RESULT(SortedFiles)
+FUNCTION sort_by_start_date(ListOfFiles, mpi_grp) RESULT(SortedFiles)
   !*## Purpose
   !
   ! Sort the NetCDF files contained in the passed list of files chronologically
@@ -185,6 +186,7 @@ FUNCTION sort_by_start_date(ListOfFiles) RESULT(SortedFiles)
   ! of the netCDF datasets.
 
   CHARACTER(LEN=*), DIMENSION(:), ALLOCATABLE, INTENT(IN) :: ListOfFiles
+  TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   CHARACTER(LEN=256), DIMENSION(:), ALLOCATABLE :: SortedFiles
 
@@ -203,7 +205,18 @@ FUNCTION sort_by_start_date(ListOfFiles) RESULT(SortedFiles)
   ! Retrieve the time indices for each file
   GetStartTimes: DO FileCounter = 1, SIZE(SortedFiles)
     ! Open and inspect the netCDF file
-    CALL handle_ncstat(NF90_OPEN(ListOfFiles(FileCounter), NF90_NOWRITE, ncID))
+#ifdef __MPI__
+    CALL handle_ncstat(NF90_OPEN(ListOfFiles(FileCounter), IOR(NF90_NOWRITE,&
+      NF90_NETCDF4), ncID, comm=mpi_grp%comm%MPI_Val,&
+      info=MPI_INFO_NULL%MPI_Val),&
+      'Failed to open file '//ListOfFiles(FileCounter)//' while assembling '&
+      //'the dataset.')
+#else
+    CALL handle_ncstat(NF90_OPEN(ListOfFiles(FileCounter), NF90_NOWRITE,&
+      ncID),&
+      'Failed to open file '//ListOfFiles(FileCounter)//' while assembling '&
+      //'the dataset.')
+#endif
 
     CALL handle_ncstat(NF90_INQ_VARID(ncID, 'time', tID))
     CALL handle_ncstat(NF90_GET_VAR(ncID, tID,&
@@ -238,13 +251,25 @@ SUBROUTINE identify_start_year(Reader)
   ! String to hold the units attribute
   CHARACTER(LEN=33) :: TimeUnits
 
+#ifdef __MPI__
+  CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), IOR(NF90_NOWRITE,&
+    NF90_NETCDF4), ncID, comm=Reader%mpi_grp%comm%MPI_Val,&
+    info=MPI_INFO_NULL%MPI_Val),&
+    'Failed to open file '//TRIM(Reader%DatasetFiles(1))//' while identifying '&
+    //'the reference year for the dataset.')
+#else
   CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE,&
-    ncID))
+    ncID),&
+    'Failed to open file '//TRIM(Reader%DatasetFiles(1))//' while identifying '&
+    //'the reference year for the dataset.')
+#endif
   
   tID = get_varid(ncID, ['time'])
-  CALL handle_ncstat(NF90_GET_VAR(ncID, tID, StartTime))
+  CALL handle_ncstat(NF90_GET_VAR(ncID, tID, StartTime),&
+    'Error retrieving time variable from dataset.')
   
-  CALL handle_ncstat(NF90_GET_ATT(ncID, tID, 'units', TimeUnits))
+  CALL handle_ncstat(NF90_GET_ATT(ncID, tID, 'units', TimeUnits),&
+    'Time variables does not have units attribute.')
 
   ! Check that the units are valid
   IF (TimeUnits(1:13) /= 'seconds since') THEN
@@ -406,21 +431,22 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
+  TYPE(MPI_Info) :: info
+
   ! Close the old reader
   IF (Reader%CurrentFileID /= -1) THEN
     CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
   END IF
 
 #ifdef __MPI__
-  !CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
-    !IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
-    !COMM=Reader%mpi_grp%comm, INFO=MPI_INFO_NULL))
-  CALL handle_ncstat(NF90_OPEN_PAR(Reader%DatasetFiles(FileIndex),&
-    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%mpi_grp%comm%MPI_Val,&
-    MPI_INFO_NULL%MPI_Val, Reader%CurrentFileID))
+  CALL MPI_Info_create(info)
+  CALL mpi_info_set_hints(info, mpi_info_hints_read)
+  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
+    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
+    comm=Reader%mpi_grp%comm%MPI_Val, info=info%MPI_Val))
 #else
-  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex), NF90_NOWRITE,&
-    Reader%CurrentFileID))
+  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
+    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID))
 #endif
 
   Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)

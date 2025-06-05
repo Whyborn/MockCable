@@ -7,10 +7,14 @@ project(
 )
 
 option(MOCK_CABLE_MPI "Build the MPI executable" OFF)
+option(MOCK_CABLE_PIO "Build with PIO" OFF)
 
 # third party libs
 if(MOCK_CABLE_MPI)
     find_package(MPI REQUIRED COMPONENTS Fortran)
+endif()
+if(MOCK_CABLE_PIO)
+    find_package(PIO REQUIRED COMPONENTS Fortran)
 endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET "netcdf-fortran")
@@ -64,10 +68,15 @@ if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
 endif()
 
-#add_executable(
-    #test-common
-    #test/test_common.F90
-#)
+if(MOCK_CABLE_PIO)
+    add_executable(
+        examplePio
+        test/examplePio.F90
+    )
+    target_link_libraries(examplePio PRIVATE MPI::MPI_Fortran PIO::PIO_Fortran)
+    install(TARGETS examplePio RUNTIME)
+endif()
+
 add_executable(
     mock-tests
     test/mock_tests.F90
@@ -81,15 +90,15 @@ else()
 endif()
 
 
-# add_executable(
-#     test-output
-#     test/test_output.F90
-# )
+add_executable(
+    test-output
+    test/test_output.F90
+)
 
-# add_executable(
-#     test-datasetreader
-#     test/test_datasetreader.F90
-# )
+add_executable(
+    test-datasetreader
+    test/test_datasetreader.F90
+)
 
 add_executable(
     mock-cable

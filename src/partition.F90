@@ -34,7 +34,7 @@ module partition_mod
 
   integer :: n_land !! Total number of land points in simulation domain
   integer, dimension(2) :: grid_shape_global !! 2D array shape of simulation domain
-  logical :: rectangular_partitioning = .true.
+  logical :: rectangular_partitioning = .false.
     !! Enable rectangular partitioning of spatial grid, otherwise sliced partitioning is used.
 
   integer, dimension(:), allocatable :: grid_index_to_land_index
@@ -342,14 +342,14 @@ contains
 
   end function get_partition_index
 
-  subroutine get_ij_process_counts(k, k_i, k_j)
-    !* Compute the number of processes along the i and j axes for a total of k
-    ! processes.
+  subroutine get_ij_partition_counts(k, k_i, k_j)
+    !* Compute the number of partitions along the i and j axes for a total of k
+    ! partitions.
     !
-    ! Trial division is used to compute the process counts along the i and j axes.
-    ! The total number of processes k must be divisible by 2. The returned
-    ! number of processes along the i axis is greater than or equal to the number
-    ! of processes along the j axis.
+    ! Trial division is used to compute the partition counts along the i and j axes.
+    ! The total number of partitions k must be divisible by 2. The returned
+    ! number of partitions along the j axis is greater than or equal to the number
+    ! of partitions along the i axis.
     integer, intent(in) :: k
     integer, intent(out) :: k_i, k_j
     integer :: n
@@ -362,11 +362,11 @@ contains
 
     do n = 2, int(sqrt(real(k))) + 1
       if (mod(k, n) /= 0) cycle
-      k_i = max(n, k / n)
-      k_j = min(n, k / n)
+      k_i = min(n, k / n)
+      k_j = max(n, k / n)
     end do
 
-  end subroutine get_ij_process_counts
+  end subroutine get_ij_partition_counts
 
   subroutine get_grid_partition_start_count(grid_shape_global, k, p, start, count)
     !* Compute ij start indexes and counts for a given partition index p for k
@@ -377,15 +377,19 @@ contains
     integer :: k_i, k_j, p_i, p_j, i_start, i_count, j_start, j_count
 
     if (rectangular_partitioning) then
-      call get_ij_process_counts(k, k_i, k_j)
+      call get_ij_partition_counts(k, k_i, k_j)
       p_i = mod(p, k_i)
-      p_j = p / k_j
+      p_j = p / k_i
       call get_partition_start_count(grid_shape_global(1), k_i, p_i, i_start, i_count)
       call get_partition_start_count(grid_shape_global(2), k_j, p_j, j_start, j_count)
       start = [i_start, j_start]
       count = [i_count, j_count]
     else
-      call get_partition_start_count(grid_shape_global(2), k, p, j_start, j_count)
+      j_count = ceiling(real(grid_shape_global(2)) / k)
+      j_start = j_count * p + 1
+      if (p == k - 1 .and. mod(grid_shape_global(2), k) /= 0) then
+        j_count = mod(grid_shape_global(2), j_count)
+      end if
       start = [1, j_start]
       count = [grid_shape_global(1), j_count]
     end if
@@ -398,17 +402,18 @@ contains
     integer, dimension(2), intent(in) :: grid_shape_global
     integer, intent(in) :: grid_index
     integer, intent(in) :: k
-    integer :: i, j, k_i, k_j, p_i, p_j, p
+    integer :: i, j, k_i, k_j, p_i, p_j, p, j_count
 
     call grid_index_to_ij(grid_index, grid_shape_global, i, j)
 
     if (rectangular_partitioning) then
-      call get_ij_process_counts(k, k_i, k_j)
+      call get_ij_partition_counts(k, k_i, k_j)
       p_i = get_partition_index(grid_shape_global(1), k_i, i)
       p_j = get_partition_index(grid_shape_global(2), k_j, j)
       p = p_i + p_j * k_i
     else
-      p = get_partition_index(grid_shape_global(2), k, j)
+      j_count = ceiling(real(grid_shape_global(2)) / k)
+      p = (j - 1) / j_count
     end if
 
   end function get_grid_partition_index
