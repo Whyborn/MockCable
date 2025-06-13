@@ -13,15 +13,21 @@ CONTAINS
     ! A series of tests to ensure the calendars are set correctly, and return
     ! the correct values for days in year, month etc.
 
-    INTEGER :: ExpectedDaysYear, Year, m
-    INTEGER, DIMENSION(:), ALLOCATABLE :: ExpectedDaysMonth, DaysMonth
+    INTEGER :: ExpectedDaysYear, Year, m, d
+    INTEGER, DIMENSION(:), ALLOCATABLE :: ExpectedDaysMonth, DaysMonth,&
+                                          DaysInYear, MonthsFromDay,&
+                                          ExpectedMonthsFromDay
     LOGICAL :: Success
+
+    ! Some days of the year to check
+    DaysInYear = [25, 60, 150, 360]
 
     ! Start with Gregorian non-leap year
     CALL set_calendar("gregorian")
     Year = 2001
     ExpectedDaysYear = 365
     ExpectedDaysMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    ExpectedMonthsFromDay = [1, 3, 5, 12]
 
     ! Run through the various tests
     Success = .not. is_leapyear(Year)
@@ -37,10 +43,15 @@ CONTAINS
     Success = (ALL(DaysMonth == ExpectedDaysMonth))
     CALL CHECK(Success)
 
+    MonthsFromDay = [(month_from_day(DaysInYear(d), Year), d = 1, 4)]
+    Success = (ALL(MonthsFromDay == ExpectedMonthsFromDay))
+    CALL CHECK(Success)
+
     ! Now try a leap year
     Year = 2004
     ExpectedDaysYear = 366
     ExpectedDaysMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    ExpectedMonthsFromDay = [1, 2, 5, 12]
 
     ! Run through the various tests
     Success = is_leapyear(Year)
@@ -56,12 +67,17 @@ CONTAINS
     Success = (ALL(DaysMonth == ExpectedDaysMonth))
     CALL CHECK(Success)
 
+    MonthsFromDay = [(month_from_day(DaysInYear(d), Year), d = 1, 4)]
+    Success = (ALL(MonthsFromDay == ExpectedMonthsFromDay))
+    CALL CHECK(Success)
+
     ! Change to a no leaps calendar, and try a year which would be a gregorian
     ! leap year
     CALL set_calendar("noleaps")
     Year = 2004
     ExpectedDaysYear = 365
     ExpectedDaysMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    ExpectedMonthsFromDay = [1, 3, 5, 12]
 
     ! Run through the various tests
     Success = (.not. is_leapyear(Year))
@@ -75,6 +91,10 @@ CONTAINS
 
     DaysMonth = [(days_in_month(m, Year), m = 1, 12)]
     Success = (ALL(DaysMonth == ExpectedDaysMonth))
+    CALL CHECK(Success)
+
+    MonthsFromDay = [(month_from_day(DaysInYear(d), Year), d = 1, 4)]
+    Success = (ALL(MonthsFromDay == ExpectedMonthsFromDay))
     CALL CHECK(Success)
 
   END SUBROUTINE test_calendars

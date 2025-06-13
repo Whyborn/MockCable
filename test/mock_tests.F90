@@ -4,6 +4,7 @@ MODULE mock_tests
     CHECK, SUITE
   USE common_tests
   USE time_tests
+  USE aggregator_tests
   !USE datasetreader_tests
   !USE output_tests
 
@@ -24,6 +25,10 @@ CONTAINS
         TEST_CASE("test_calendars", test_calendars),&
         TEST_CASE("test_to_from_string", test_to_from_string),&
         TEST_CASE("test_intervals", test_intervals)&
+        ])),&
+      SUITE("aggregator", TEST_LIST([&
+        TEST_CASE("test_1d_aggregator", test_1d_aggregators),&
+        TEST_CASE("test_2d_aggregator", test_2d_aggregators)&
         ]))&
       ])
 

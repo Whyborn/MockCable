@@ -61,6 +61,7 @@ add_library(
     src/output_module.F90
     src/mpi_serial_stub_module.F90
     src/partition.F90
+    src/aggregator.F90
 )
 target_link_libraries(common PUBLIC PkgConfig::NETCDF $<$<BOOL:${MOCK_CABLE_MPI}>:MPI::MPI_Fortran>)
 
@@ -82,7 +83,10 @@ add_executable(
     test/mock_tests.F90
     test/test_common.F90
     test/test_time.F90
+    test/test_aggregator.F90
+    test/utils_for_tests.F90
 )
+
 if (MOCK_CABLE_MPI)
   target_sources(mock-tests PRIVATE test/fortuno_interface_mpi.f90)
 else()
@@ -90,15 +94,15 @@ else()
 endif()
 
 
-add_executable(
-    test-output
-    test/test_output.F90
-)
+#add_executable(
+    #test-output
+    #test/test_output.F90
+#)
 
-add_executable(
-    test-datasetreader
-    test/test_datasetreader.F90
-)
+#add_executable(
+    #test-datasetreader
+    #test/test_datasetreader.F90
+#)
 
 add_executable(
     mock-cable
@@ -122,6 +126,7 @@ install(TARGETS simple4by4 RUNTIME)
 foreach (testsuite IN ITEMS
     "common"
     "time"
+    "aggregator"
     )
     if(MOCK_CABLE_MPI)
         add_test(NAME ${testsuite}

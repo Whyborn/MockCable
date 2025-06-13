@@ -68,6 +68,32 @@ CONTAINS
     END IF
   END FUNCTION days_in_month
 
+  FUNCTION month_from_day(Day, Year)
+    !*## Purpose
+    !
+    ! Determine which month a given day of the year is in.
+
+    INTEGER, INTENT(IN) :: Day, Year
+
+    INTEGER :: month_from_day
+
+    INTEGER :: DaySum
+
+    ! Check the day is valid
+    IF (Day > days_in_year(Year)) THEN
+      WRITE(ERROR_UNIT, '(A)') "Invalid day passed to month_from_day."
+    END IF
+
+    DaySum = 1
+    DO month_from_day = 1, 12
+      DaySum = DaySum + days_in_month(month_from_day, Year)
+      IF (DaySum > Day) THEN
+        EXIT
+      ENDIF
+    END DO
+
+  END FUNCTION month_from_day    
+      
   FUNCTION is_leapyear(Year)
     !*## Purpose
     !
