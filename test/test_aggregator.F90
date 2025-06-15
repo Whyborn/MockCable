@@ -318,7 +318,7 @@ CONTAINS
     Success = (ALL(Ans == TestData(:, :, 3)))
     CALL CHECK(SUCCESS)
 
-    ! Check that the new trigger point is set- can jsut do that for one
+    ! Check that the new trigger point is set- can just do that for one
     CALL MeanAgg%get_trigger(Year, t+1)
     Success = (MeanAgg%Trigger == 1)
     CALL CHECK(SUCCESS)
