@@ -121,7 +121,7 @@ MODULE aggregator_module
     ! The aggregation method and method for determining the length of the 
     ! interval are bound to the type on initialisation. 
 
-    INTEGER :: Trigger, Timestep, Counter = 0
+    INTEGER :: Trigger, Timestep, Month, Year, Counter = 0
     PROCEDURE(trigger_method), POINTER :: trigger_method
     PROCEDURE(accumulate_array_data), POINTER :: accum_array_data
   CONTAINS
@@ -143,14 +143,13 @@ MODULE aggregator_module
   END INTERFACE
 
   ABSTRACT INTERFACE
-    SUBROUTINE trigger_method(this, Year, Step)
+    SUBROUTINE trigger_method(this)
       !*## Purpose
       !
       ! Abstract method used as a placeholder for a specific aggregation method
       ! and array rank.
       IMPORT Aggregator
       CLASS(Aggregator), INTENT(INOUT) :: this
-      INTEGER, INTENT(IN) :: Year, Step
     END SUBROUTINE trigger_method
   END INTERFACE
 
@@ -235,14 +234,13 @@ CONTAINS
 
   END FUNCTION accumulate_data
 
-  SUBROUTINE get_trigger(this, Year, Step)
+  SUBROUTINE get_trigger(this)
     !*## Purpose
     !
     ! Get the next trigger point for the accumulator,
     CLASS(Aggregator), INTENT(INOUT) :: this
-    INTEGER, INTENT(IN) :: Year, Step
 
-    CALL this%trigger_method(Year, Step)
+    CALL this%trigger_method()
 
   END SUBROUTINE get_trigger
 
@@ -452,36 +450,31 @@ CONTAINS
 ! Now define the trigger methods- it's important to remember we're always
 ! getting the trigger for the next period, so for months and years, we need to
 ! look at the next month/year
-  SUBROUTINE timestep_trigger(this, Year, Step)
+  SUBROUTINE timestep_trigger(this)
     CLASS(Aggregator), INTENT(INOUT) :: this
-    INTEGER, INTENT(IN) :: Year, Step
-
-    this%trigger = 1
   END SUBROUTINE timestep_trigger
 
-  SUBROUTINE daily_trigger(this, Year, Step)
+  SUBROUTINE daily_trigger(this)
     CLASS(Aggregator), INTENT(INOUT) :: this
-    INTEGER, INTENT(IN) :: Year, Step
-
-    this%trigger = SecsInDay / this%Timestep
   END SUBROUTINE daily_trigger
 
-  SUBROUTINE monthly_trigger(this, Year, Step)
+  SUBROUTINE monthly_trigger(this)
     CLASS(Aggregator), INTENT(INOUT) :: this
-    INTEGER, INTENT(IN) :: Year, Step
-    INTEGER :: Month
 
-    Month = month_from_day(Step * this%Timestep / SecsInDay, Year)
-    Month = MOD(Month + 1, 12)
-    this%trigger = (SecsInDay * days_in_month(Month, Year)) / this%Timestep
+    this%Year = this%Year + this%Month / 12
+    this%Month = MOD(this%Month, 12) + 1
+    this%Trigger = (SecsInDay * days_in_month(this%Month, this%Year)) /&
+      this%Timestep
 
   END SUBROUTINE monthly_trigger
     
-  SUBROUTINE yearly_trigger(this, Year, Step)
+  SUBROUTINE yearly_trigger(this)
     CLASS(Aggregator), INTENT(INOUT) :: this
-    INTEGER, INTENT(IN) :: Year, Step
 
-    this%trigger = SecsInDay * days_in_year(Year + 1) / this%Timestep
+    this%Year = this%Year + 1
+    WRITE(*,*) "Whats the days in ", this%Year, "? ", days_in_year(this%Year)
+    this%Trigger = SecsInDay * days_in_year(this%Year) / this%Timestep
+    WRITE(*,*) "Whats the trigger?", this%Trigger
 
   END SUBROUTINE yearly_trigger
 
@@ -558,23 +551,30 @@ CONTAINS
       STOP -1
     END SELECT
 
+    ! Assign the timestep and get the trigger
+    Agg%Timestep = Timestep
+
     ! Now select the period method
     IF (Period == "timestep") THEN
       Agg%trigger_method => timestep_trigger
+      Agg%Trigger = 1
     ELSEIF (Period == "daily") THEN
       Agg%trigger_method => daily_trigger
+      Agg%Trigger = SecsInDay / Timestep
     ELSEIF (Period == "monthly") THEN
       Agg%trigger_method => monthly_trigger
+      Agg%Month = 0
+      Agg%Year = Year
     ELSEIF (Period == "yearly") THEN
       Agg%trigger_method => yearly_trigger
+      Agg%Year = Year - 1
     ELSE
       WRITE(ERROR_UNIT,'(A)') "Specified period:" //Period//" is not valid."
       STOP -1
     END IF
 
-    ! Assign the timestep and get the trigger
-    Agg%Timestep = Timestep
-    CALL Agg%get_trigger(Year - 1, SecsInDay * days_in_year(Year - 1) / Timestep)
+    ! Get the trigger point    
+    CALL Agg%get_trigger()
 
   END SUBROUTINE initialise_aggregator
 

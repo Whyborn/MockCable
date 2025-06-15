@@ -17,7 +17,7 @@ CONTAINS
     REAL, DIMENSION(:,:), ALLOCATABLE :: TestData
     REAL, DIMENSION(:), ALLOCATABLE :: Ans
     INTEGER :: Year, TimeStep, StepsInYear
-    INTEGER :: t, p, i
+    INTEGER :: t, p, i, BigInt = 100000
     CHARACTER(LEN=10) :: TimePeriod
     CLASS(Aggregator), ALLOCATABLE :: MeanAgg, SumAgg, MinAgg, MaxAgg
     LOGICAL :: Trigger, Success
@@ -48,7 +48,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, t))
       Trigger = SumAgg%accumulate_data(TestData(:, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, t))
@@ -83,7 +83,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can jsut do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == 1)
     CALL CHECK(SUCCESS)
 
@@ -99,7 +99,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, t))
       Trigger = SumAgg%accumulate_data(TestData(:, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, t))
@@ -134,7 +134,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can jsut do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == 4)
     CALL CHECK(SUCCESS)
     
@@ -150,7 +150,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, t))
       Trigger = SumAgg%accumulate_data(TestData(:, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, t))
@@ -169,7 +169,6 @@ CONTAINS
     ! Check the contents of the aggregators- now we actually have to some
     ! meaningful checking
     CALL MeanAgg%get_data(Ans)
-    WRITE(*,*) "Ans:", Ans, "TestData:", SUM(TestData(:, 1:t), 2) / t
     Success = (ALL(Ans == SUM(TestData(:, 1:t), 2) / t))
     CALL CHECK(SUCCESS)
 
@@ -186,7 +185,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can just do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == (4 * days_in_month(2, Year)))
     CALL CHECK(SUCCESS)
 
@@ -202,7 +201,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, t))
       Trigger = SumAgg%accumulate_data(TestData(:, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, t))
@@ -237,7 +236,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can jsut do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == (4 * days_in_year(Year+1)))
     CALL CHECK(SUCCESS)
 
@@ -251,7 +250,7 @@ CONTAINS
     REAL, DIMENSION(:,:,:), ALLOCATABLE :: TestData
     REAL, DIMENSION(:,:), ALLOCATABLE :: Ans
     INTEGER :: Year, TimeStep, StepsInYear
-    INTEGER :: t, p, i, j
+    INTEGER :: t, p, i, j, BigInt = 100000
     CHARACTER(LEN=10) :: TimePeriod
     CLASS(Aggregator), ALLOCATABLE :: MeanAgg, SumAgg, MinAgg, MaxAgg
     LOGICAL :: Trigger, Success
@@ -284,7 +283,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, :, t))
       Trigger = SumAgg%accumulate_data(TestData(:, :, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, :, t))
@@ -319,7 +318,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can just do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == 1)
     CALL CHECK(SUCCESS)
 
@@ -335,7 +334,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, :, t))
       Trigger = SumAgg%accumulate_data(TestData(:, :, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, :, t))
@@ -370,7 +369,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can jsut do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == 4)
     CALL CHECK(SUCCESS)
     
@@ -386,7 +385,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, :, t))
       Trigger = SumAgg%accumulate_data(TestData(:, :, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, :, t))
@@ -405,7 +404,6 @@ CONTAINS
     ! Check the contents of the aggregators- now we actually have to some
     ! meaningful checking
     CALL MeanAgg%get_data(Ans)
-    WRITE(*,*) "Ans:", Ans, "TestData:", SUM(TestData(:, :, 1:t), 2) / t
     Success = (ALL(Ans == SUM(TestData(:, :, 1:t), 3) / t))
     CALL CHECK(SUCCESS)
 
@@ -422,7 +420,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can jsut do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == (4 * days_in_month(2, Year)))
     CALL CHECK(SUCCESS)
 
@@ -438,7 +436,7 @@ CONTAINS
       "min", Timestep, Year, MinAgg)
 
     ! Iterate until the time period has elapsed
-    DO t = 1, StepsInYear
+    DO t = 1, BigInt
       Trigger = MeanAgg%accumulate_data(TestData(:, :, t))
       Trigger = SumAgg%accumulate_data(TestData(:, :, t))
       Trigger = MaxAgg%accumulate_data(TestData(:, :, t))
@@ -473,7 +471,7 @@ CONTAINS
     CALL CHECK(SUCCESS)
 
     ! Check that the new trigger point is set- can jsut do that for one
-    CALL MeanAgg%get_trigger(Year, t+1)
+    CALL MeanAgg%get_trigger()
     Success = (MeanAgg%Trigger == (4 * days_in_year(Year+1)))
     CALL CHECK(SUCCESS)
 
