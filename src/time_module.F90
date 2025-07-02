@@ -12,7 +12,7 @@ MODULE time_module
   INTEGER(KIND(CalendarType)) :: Calendar = Gregorian
 
   ! Some compile time constants
-  INTEGER, PARAMETER :: SecsInDay = 86400
+  INTEGER, PARAMETER :: secs_in_day = 86400
 
 CONTAINS
 
@@ -135,6 +135,39 @@ CONTAINS
     END IF
   END FUNCTION leap_day
 
+  function is_end_of_day(step, dt)
+    !*## Purpose
+    !
+    ! Determine whether the end of the specified timestep is the end of a day.
+
+    integer, intent(in) :: step, dt
+    logical :: is_end_of_day
+
+    is_end_of_day = (MOD(step * dt, secs_in_day) == 0)
+
+  end function is_end_of_day
+
+  function is_end_of_month(year, step, dt)
+    !*## Purpose
+    !
+    ! Determine whether the end of the specified timestep is the end of a
+    ! month.
+
+    integer, intent(in) :: year, step, dt
+    logical :: is_end_of_month
+
+    integer :: m
+
+    do m = 1, 12
+      is_end_of_month = (MOD(step * dt, secs_in_day * days_in_month(year, m))&
+        == 0)
+      if (is_end_of_month) then
+        exit
+      end if
+    end do
+
+  end function is_end_of_month
+
   SUBROUTINE read_time_string(TimeString, Year, Day, Second)
     !*## Purpose
     !
@@ -247,7 +280,7 @@ CONTAINS
     TotalSecs = 0
 
     DO YearIter = RefYear, TargetYear-1
-      TotalSecs = TotalSecs + (365 + leap_day(YearIter)) * SecsInDay
+      TotalSecs = TotalSecs + (365 + leap_day(YearIter)) * secs_in_day
     END DO
 
     ! Hopefully we have checked that the time step size fits nicely into the
