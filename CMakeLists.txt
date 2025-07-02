@@ -91,16 +91,6 @@ endif()
 
 
 add_executable(
-    test-output
-    test/test_output.F90
-)
-
-add_executable(
-    test-datasetreader
-    test/test_datasetreader.F90
-)
-
-add_executable(
     mock-cable
     src/mock_cable.F90
 )
