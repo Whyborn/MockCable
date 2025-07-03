@@ -2,7 +2,7 @@ MODULE common_tests
   
   USE fortuno_interface_m, ONLY: CHECK
   USE common_module, ONLY: sort, approx_equal,&
-    find_largest_element_less_than_sorted
+    find_element_leq_sorted
 
   IMPLICIT NONE
 

@@ -13,7 +13,7 @@ USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, intervals_since
 USE common_module, ONLY: sort, get_dimid, get_varid, handle_ncstat, LonNames,&
                          LatNames, TimeNames, approx_equal,&
-                         find_largest_element_less_than_sorted
+                         find_element_leq_sorted
 
 IMPLICIT NONE
 
