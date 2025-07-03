@@ -79,6 +79,34 @@ CONTAINS
 
   END SUBROUTINE test_calendars
 
+  subroutine test_end_of_period()
+    !*## Purpose
+    !
+    ! Test the end-of-period routines
+
+    integer :: year, dt, step
+
+    ! Set timestep of 4hrs
+    dt = 14400
+
+    ! Check for days- anything a multiple of 6 should be true
+    CALL CHECK(is_end_of_day(6, dt))
+    CALL CHECK(is_end_of_day(6000, dt))
+    CALL CHECK(.NOT. is_end_of_day(5, dt))
+
+    ! Check for months- do leap and non-leap years
+    year = 2003
+    CALL CHECK(is_end_of_month(year, 31 * 6, dt))
+    CALL CHECK(is_end_of_month(year, 59 * 6, dt))
+    CALL CHECK(is_end_of_month(year, 365 * 6, dt))
+    CALL CHECK(.NOT. is_end_of_month(year, 30 * 6, dt))
+
+    year = 2004
+    CALL CHECK(is_end_of_month(year, 60 * 6, dt))
+    CALL CHECK(.NOT. is_end_of_month(year, 59 * 6, dt))
+
+  end subroutine test_end_of_period
+
   SUBROUTINE test_to_from_string()
     !*## Purpose
     !
