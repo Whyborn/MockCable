@@ -141,6 +141,8 @@ FUNCTION get_files_from_text(InputFileList) RESULT(ListOfFiles)
 
   ! We just use 1000 as a 'sufficiently larger number' here- it's the upper
   ! limit to the number of files we could possibly have in a dataset reader
+  ! Don't set it to a number too big, just in case something unexpected goes
+  ! wrong, don't want to get stuck in an effectively infinite loop
   ReadFilenames: DO LineCounter = 1, 1000
     ! Read a line from the file into the temporary array
     READ(FileUnit, '(A)', IOSTAT=ios, IOMSG=ioMessage)&
@@ -200,7 +202,8 @@ FUNCTION sort_by_start_date(ListOfFiles, mpi_grp) RESULT(SortedFiles)
   INTEGER, DIMENSION(:), ALLOCATABLE :: Indexer
 
   ! Allocate the arrays based off the number of files
-  ALLOCATE(SortedFiles(SIZE(ListOfFiles)), TimeValues(SIZE(ListOfFiles)))
+  ALLOCATE(SortedFiles(SIZE(ListOfFiles)), TimeValues(SIZE(ListOfFiles)),&
+    Indexer(SIZE(ListOfFiles)))
 
   ! Retrieve the time indices for each file
   GetStartTimes: DO FileCounter = 1, SIZE(SortedFiles)
@@ -553,9 +556,7 @@ SUBROUTINE select_file(Reader, IndexInDataset, FileIndex, IndexInFile)
   INTEGER, INTENT(OUT) :: IndexInFile
 
   ! Throw an error if the FileIndex == 0, since it means something went wrong
-
-  FileIndex = find_largest_element_less_than_sorted(Reader%IndexRange,&
-    IndexInDataset)
+  FileIndex = find_element_leq_sorted(Reader%IndexRange, IndexInDataset)
 
   IF (FileIndex == 0) THEN
     WRITE(ERROR_UNIT,*) 'Something went wrong when indexing the dataset.'

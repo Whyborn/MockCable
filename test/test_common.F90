@@ -102,10 +102,10 @@ SUBROUTINE test_find_largest_less_than()
   INTEGER :: UpperLimit = 3
   INTEGER :: vSimpleAns, vDupAns
 
-  vSimpleAns = find_largest_element_less_than_sorted(vSimple, UpperLimit)
-  vDupAns = find_largest_element_less_than_sorted(vDup, UpperLimit)
+  vSimpleAns = find_element_leq_sorted(vSimple, UpperLimit)
+  vDupAns = find_element_leq_sorted(vDup, UpperLimit)
 
-  CALL CHECK(vSimpleAns == 2)
+  CALL CHECK(vSimpleAns == 3)
   CALL CHECK(vDupAns == 3)
 
 END SUBROUTINE test_find_largest_less_than

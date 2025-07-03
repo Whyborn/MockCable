@@ -104,7 +104,7 @@ SUBROUTINE sort_real(RealArray, Indexer)
   END DO
 END SUBROUTINE sort_real
 
-FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
+FUNCTION find_element_leq_sorted(Values, UpperLimit)&
     RESULT(IndexOfLargest)
   !*## Purpose
   !
@@ -134,7 +134,7 @@ FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
   ! find the first index that is greater than our desired index
   DO WHILE (LowerBound <= UpperBound)
     Middle = (LowerBound + UpperBound) / 2
-    IF (Values(Middle) < UpperLimit) THEN
+    IF (Values(Middle) <= UpperLimit) THEN
       IndexOfLargest = Middle
       LowerBound = Middle + 1
     ELSE
@@ -144,7 +144,7 @@ FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
 
   !IndexOfLargest = Middle
 
-END FUNCTION find_largest_element_less_than_sorted
+END FUNCTION find_element_leq_sorted
 
 FUNCTION approx_equal(LHS, RHS, Tolerance) RESULT(IsEqual)
   !*## Purpose
