@@ -1,6 +1,8 @@
 MODULE time_module
 
-  USE iso_fortran_env, ONLY: ERROR_UNIT
+  USE iso_fortran_env, ONLY: OUTPUT_UNIT, ERROR_UNIT
+
+  IMPLICIT NONE
 
   PRIVATE :: CalendarType, Gregorian, NoLeaps
   ENUM, BIND(c)
@@ -63,7 +65,7 @@ CONTAINS
     ELSEIF (Month == 2) THEN
       days_in_month = 28 + leap_day(Year)
     ELSE
-      WRITE(ERROR_UNIT, '(A)') "Invalid month passed to days_in_month."
+      WRITE(ERROR_UNIT, '(A)') "Month", Month, "is invalid in days_in_month."
       STOP 5
     END IF
   END FUNCTION days_in_month
@@ -156,12 +158,17 @@ CONTAINS
     integer, intent(in) :: year, step, dt
     logical :: is_end_of_month
 
-    integer :: m
+    integer :: m, total_days
+
+    is_end_of_month = .FALSE.
+    total_days = 0
 
     do m = 1, 12
-      is_end_of_month = (MOD(step * dt, secs_in_day * days_in_month(year, m))&
-        == 0)
-      if (is_end_of_month) then
+      total_days = total_days + days_in_month(m, year)
+      if ((step * dt) == (secs_in_day * total_days)) then
+        is_end_of_month = .TRUE.
+        exit
+      elseif ((step * dt) < (secs_in_day * total_days)) then
         exit
       end if
     end do

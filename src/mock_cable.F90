@@ -31,19 +31,18 @@ PROGRAM mock_cable
 
   ! This is example setup- these could be triggers for respective modules e.g.
   ! geophysics and CASA
-  LOGICAL, POINTER :: TriggerA, TriggerB, TriggerC
+  LOGICAL, POINTER :: TriggerA, TriggerB
 
   NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile,&
     rectangular_partitioning, mpi_info_hints_write, mpi_info_hints_read
   NAMELIST /DEBUGNML/ write_output
-
-  dt_int = INT(dt)
 
   OPEN(NEWUNIT=nmlUnit, FILE='cable.nml', STATUS='OLD', ACTION='READ')
   READ(nmlUnit, NML=CABLENML)
   READ(nmlUnit, NML=DEBUGNML)
   CLOSE(nmlUnit)
 
+  dt_int = INT(dt)
   ! Initialise the MPI
   CALL mpi_mod_init()
   mpi_grp = mpi_grp_t()
@@ -86,25 +85,13 @@ PROGRAM mock_cable
       rain_sum = sum(Met%Rain)
       if (write_output) CALL write_meteorology(mpi_grp, Met, TimeStep)
 
-      ! Do some checks to make sure it's working
-      IF (StartOfDay) THEN
-        WRITE(OUTPUT_UNIT,*) "Step", Timestep, "was the start of a new day."
-      ENDIF
-      IF (StartOfMonth) THEN
-        WRITE(OUTPUT_UNIT,*) "Step", Timestep, "was the start of a new month."
-      ENDIF
-      IF (EndOfDay) THEN
-        WRITE(OUTPUT_UNIT,*) "Step", Timestep, "was the end of a day."
-      ENDIF
-      IF (EndOfDay) THEN
-        WRITE(OUTPUT_UNIT,*) "Step", Timestep, "was the end of a month."
-      ENDIF
-      IF (TriggerA) THEN
-        WRITE(OUTPUT_UNIT,*) "TriggerA triggered on step", Timestep
-      ENDIF
-      IF (TriggerB) THEN
-        WRITE(OUTPUT_UNIT,*) "TriggerB triggered on step", Timestep
-      ENDIF
+      if (TriggerA) then
+        ! Something that happens at the end of every day
+      end if
+
+      if (TriggerB) then
+        ! Something that happens at the end of a month
+      end if
     END DO
   END DO
 
