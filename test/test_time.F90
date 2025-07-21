@@ -1,11 +1,28 @@
 MODULE time_tests
 
-  USE fortuno_interface_m, ONLY: CHECK, TEST_LIST, SUITE
+  USE fortuno_interface_m, ONLY: check, test_list, suite, test_case
   USE time_module
 
   IMPLICIT NONE
 
 CONTAINS
+
+  function time_test_list()
+    !* Purpose
+    !
+    ! Return the set of tests contained in the time test suite.
+
+    type(test_list) :: time_test_list
+
+    time_test_list = test_list([&
+      suite("time_tests", test_list([&
+        test_case("test_calendars", test_calendars),&
+        test_case("test_to_from_string", test_to_from_string),&
+        test_case("test_intervals", test_intervals)&
+      ]))&
+    ])
+
+  end function time_test_list
 
   SUBROUTINE test_calendars()
     !*## Purpose

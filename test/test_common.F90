@@ -1,12 +1,29 @@
 MODULE common_tests
   
-  USE fortuno_interface_m, ONLY: CHECK
+  USE fortuno_interface_m, ONLY: check, suite, test_list, test_case
   USE common_module, ONLY: sort, approx_equal,&
     find_largest_element_less_than_sorted
 
   IMPLICIT NONE
 
 CONTAINS
+
+  function common_test_list()
+    !*## Purpose
+    !
+    ! Set of tests for the common module.
+
+    type(test_list) :: common_test_list
+
+    common_test_list = test_list([&
+      suite("common_tests", test_list([&
+        test_case("test_sort", test_sort),&
+        test_case("test_approx_equal", test_approx_equal),&
+        test_case("test_find_largest_less_than", test_find_largest_less_than)&
+        ]))&
+      ])
+
+  end function common_test_list
 
   SUBROUTINE test_sort()
     !*## Purpose

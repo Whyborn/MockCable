@@ -89,17 +89,6 @@ else()
   target_sources(mock-tests PRIVATE test/fortuno_interface_serial.f90)
 endif()
 
-
-add_executable(
-    test-output
-    test/test_output.F90
-)
-
-add_executable(
-    test-datasetreader
-    test/test_datasetreader.F90
-)
-
 add_executable(
     mock-cable
     src/mock_cable.F90
