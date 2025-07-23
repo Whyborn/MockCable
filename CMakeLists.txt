@@ -26,6 +26,8 @@ if (MOCK_CABLE_MPI)
         FortunoMPI
         GIT_REPOSITORY https://github.com/fortuno-repos/fortuno
         GIT_TAG main
+        PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/mpi_base_types.patch
+        UPDATE_DISCONNECTED ON
     )
     FetchContent_MakeAvailable(FortunoMPI)
     set(fortuno_libs Fortuno::fortuno_mpi)
@@ -95,8 +97,11 @@ endif()
 add_executable(
     mock-tests
     test/mock_tests.F90
+    test/fixtures.F90
+    test/file_utils.F90
     test/test_common.F90
     test/test_time.F90
+    test/test_cable_netcdf.F90
 )
 if (MOCK_CABLE_MPI)
   target_sources(mock-tests PRIVATE test/fortuno_interface_mpi.f90)
@@ -130,12 +135,16 @@ install(TARGETS simple4by4 RUNTIME)
 install(TARGETS test-cable-netcdf-write-darray RUNTIME)
 
 if(MOCK_CABLE_MPI)
-    add_test(NAME mock-tests
-        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests>
+    add_test(NAME mock-tests-serial
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ~parallel
     )
-    set_tests_properties(mock-tests PROPERTIES PROCESSORS 1)
+    set_tests_properties(mock-tests-serial PROPERTIES PROCESSORS 1)
+    add_test(NAME mock-tests-parallel
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:mock-tests> parallel
+    )
+    set_tests_properties(mock-tests-parallel PROPERTIES PROCESSORS 4)
 else()
-    add_test(NAME mock-tests
-        COMMAND $<TARGET_FILE:mock-tests>
+    add_test(NAME mock-tests-serial
+        COMMAND $<TARGET_FILE:mock-tests> ~parallel
     )
 endif()

@@ -3,6 +3,7 @@ MODULE mock_tests
   use fortuno_interface_m, only: test_list
   use common_tests, only: common_test_list
   use time_tests, only: time_test_list
+  use test_cable_netcdf, only: cable_netcdf_test_list
   !USE datasetreader_tests
   !USE output_tests
 
@@ -15,7 +16,8 @@ CONTAINS
 
     Tests = TEST_LIST([&
       common_test_list(),&
-      time_test_list()&
+      time_test_list(),&
+      cable_netcdf_test_list()&
     ])
 
   END FUNCTION tests

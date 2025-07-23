@@ -18,7 +18,8 @@ MODULE mpi_module
     mpi_mod_end, &
     mpi_info_set_hints, &
     mpi_info_hints_t, &
-    mpi_check_error
+    mpi_check_error, &
+    MPI_COMM_UNDEFINED
 
   TYPE(MPI_COMM), PARAMETER :: MPI_COMM_UNDEFINED = MPI_COMM_NULL
   INTEGER, PARAMETER :: HINT_UNDEFINED_INTEGER = 0
@@ -46,6 +47,7 @@ MODULE mpi_module
     INTEGER :: rank = -1   !! Rank of the current process
     INTEGER :: size = -1   !! Size of the communicator
   CONTAINS
+    PROCEDURE :: barrier => mpi_grp_barrier
     PROCEDURE :: abort => mpi_grp_abort !! Send abort signal to processes in this group
   END TYPE mpi_grp_t
 
@@ -134,6 +136,22 @@ CONTAINS
     END IF
 
   END FUNCTION mpi_grp_constructor
+
+  SUBROUTINE mpi_grp_barrier(this)
+    !! Blocks all MPI processes in this group until they all call this routine.
+    CLASS(mpi_grp_t), INTENT(IN) :: this
+
+    INTEGER :: ierr
+
+    IF (this%comm /= MPI_COMM_UNDEFINED) THEN
+      ! Here we use an arbitrary error code
+#ifdef __MPI__
+      call MPI_Barrier(this%comm, ierr)
+#endif
+      call mpi_check_error(ierr)
+    END IF
+
+  END SUBROUTINE mpi_grp_barrier
 
   SUBROUTINE mpi_grp_abort(this)
     !* Class method to abort execution of an MPI group.
