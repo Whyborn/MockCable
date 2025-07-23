@@ -107,19 +107,13 @@ install(TARGETS mock-tests RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
 
-# Register tests by suite
-foreach (testsuite IN ITEMS
-    "common_tests"
-    "time_tests"
+if(MOCK_CABLE_MPI)
+    add_test(NAME mock-tests
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests>
     )
-    if(MOCK_CABLE_MPI)
-        add_test(NAME ${testsuite}
-            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ${testsuite}
-        )
-        set_tests_properties(${testsuite} PROPERTIES PROCESSORS 1)
-    else()
-        add_test(NAME ${testsuite}
-            COMMAND $<TARGET_FILE:mock-tests> ${testsuite}
-        )
-    endif()
-endforeach ()
+    set_tests_properties(mock-tests PROPERTIES PROCESSORS 1)
+else()
+    add_test(NAME mock-tests
+        COMMAND $<TARGET_FILE:mock-tests>
+    )
+endif()
