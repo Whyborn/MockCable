@@ -109,8 +109,8 @@ install(TARGETS simple4by4 RUNTIME)
 
 # Register tests by suite
 foreach (testsuite IN ITEMS
-    "common"
-    "time"
+    "common_tests"
+    "time_tests"
     )
     if(MOCK_CABLE_MPI)
         add_test(NAME ${testsuite}
