@@ -37,8 +37,11 @@ contains
     integer, intent(out) :: start, end, block_per_pe
     integer i
 
-    block_per_pe = len / num_ranks()
+    block_per_pe = LEN / num_ranks()
+
+    call check(mod(LEN, num_ranks()) == 0, msg="test_cable_netcdf.F90: work not divisible by number of ranks")
     call check(block_per_pe > 0, msg="test_cable_netcdf.F90: not enough work to distribute among pes")
+
     check_valid_decomp = .not. check_failed()
     if (check_failed()) return
 
