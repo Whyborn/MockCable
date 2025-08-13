@@ -41,6 +41,7 @@ contains
 
     call check(mod(LEN, num_ranks()) == 0, msg="test_cable_netcdf.F90: work not divisible by number of ranks")
     call check(block_per_pe > 0, msg="test_cable_netcdf.F90: not enough work to distribute among pes")
+    call check(mod(block_per_pe, 4) == 0, msg="test_cable_netcdf.F90: block_per_pe must be divisible by 4")
 
     check_valid_decomp = .not. check_failed()
     if (check_failed()) return
@@ -59,21 +60,24 @@ contains
     class(cable_netcdf_file_t), allocatable :: file
     class(cable_netcdf_decomp_t), allocatable :: decomp
     integer, allocatable :: compmap(:)
-    integer :: block_per_pe, start, end
+    integer :: block_per_pe, start, end, buffer_shape_2d(2), buffer_shape_3d(3)
     integer(kind=CABLE_NETCDF_INT32_KIND), allocatable :: write_buffer_1d(:), write_buffer_2d(:, :), write_buffer_3d(:, :, :)
     integer(kind=CABLE_NETCDF_INT32_KIND), allocatable :: read_buffer_1d(:), read_buffer_2d(:, :), read_buffer_3d(:, :, :)
 
     if (.not. check_valid_decomp(compmap, start, end, block_per_pe)) return
 
+    buffer_shape_2d = [block_per_pe / 4, 4]
+    buffer_shape_3d = [block_per_pe / 4, 2, 2]
+
     file = io_handler%create_file(file_name)
 
     allocate(write_buffer_1d(start:end), source=int(this_rank() + VAL, kind=CABLE_NETCDF_INT32_KIND))
-    write_buffer_2d = reshape(write_buffer_1d, [block_per_pe, 1])
-    write_buffer_3d = reshape(write_buffer_1d, [block_per_pe, 1, 1])
+    write_buffer_2d = reshape(write_buffer_1d, buffer_shape_2d)
+    write_buffer_3d = reshape(write_buffer_1d, buffer_shape_3d)
 
     allocate(read_buffer_1d(start:end), source=int(0, kind=CABLE_NETCDF_INT32_KIND))
-    read_buffer_2d = reshape(read_buffer_1d, [block_per_pe, 1])
-    read_buffer_3d = reshape(read_buffer_1d, [block_per_pe, 1, 1])
+    read_buffer_2d = reshape(read_buffer_1d, buffer_shape_2d)
+    read_buffer_3d = reshape(read_buffer_1d, buffer_shape_3d)
 
     decomp = io_handler%create_decomp(compmap, dims=[LEN], type=CABLE_NETCDF_INT)
 
@@ -109,21 +113,24 @@ contains
     class(cable_netcdf_file_t), allocatable :: file
     class(cable_netcdf_decomp_t), allocatable :: decomp
     integer, allocatable :: compmap(:)
-    integer :: block_per_pe, start, end
+    integer :: block_per_pe, start, end, buffer_shape_2d(2), buffer_shape_3d(3)
     real(kind=CABLE_NETCDF_REAL32_KIND), allocatable :: write_buffer_1d(:), write_buffer_2d(:, :), write_buffer_3d(:, :, :)
     real(kind=CABLE_NETCDF_REAL32_KIND), allocatable :: read_buffer_1d(:), read_buffer_2d(:, :), read_buffer_3d(:, :, :)
 
     if (.not. check_valid_decomp(compmap, start, end, block_per_pe)) return
 
+    buffer_shape_2d = [block_per_pe / 4, 4]
+    buffer_shape_3d = [block_per_pe / 4, 2, 2]
+
     file = io_handler%create_file(file_name)
 
     allocate(write_buffer_1d(start:end), source=real(this_rank() + VAL, kind=CABLE_NETCDF_REAL32_KIND))
-    write_buffer_2d = reshape(write_buffer_1d, [block_per_pe, 1])
-    write_buffer_3d = reshape(write_buffer_1d, [block_per_pe, 1, 1])
+    write_buffer_2d = reshape(write_buffer_1d, buffer_shape_2d)
+    write_buffer_3d = reshape(write_buffer_1d, buffer_shape_3d)
 
     allocate(read_buffer_1d(start:end), source=real(0, kind=CABLE_NETCDF_REAL32_KIND))
-    read_buffer_2d = reshape(read_buffer_1d, [block_per_pe, 1])
-    read_buffer_3d = reshape(read_buffer_1d, [block_per_pe, 1, 1])
+    read_buffer_2d = reshape(read_buffer_1d, buffer_shape_2d)
+    read_buffer_3d = reshape(read_buffer_1d, buffer_shape_3d)
 
     decomp = io_handler%create_decomp(compmap, dims=[LEN], type=CABLE_NETCDF_FLOAT)
 
@@ -159,21 +166,24 @@ contains
     class(cable_netcdf_file_t), allocatable :: file
     class(cable_netcdf_decomp_t), allocatable :: decomp
     integer, allocatable :: compmap(:)
-    integer :: block_per_pe, start, end
+    integer :: block_per_pe, start, end, buffer_shape_2d(2), buffer_shape_3d(3)
     real(kind=CABLE_NETCDF_REAL64_KIND), allocatable :: write_buffer_1d(:), write_buffer_2d(:, :), write_buffer_3d(:, :, :)
     real(kind=CABLE_NETCDF_REAL64_KIND), allocatable :: read_buffer_1d(:), read_buffer_2d(:, :), read_buffer_3d(:, :, :)
 
     if (.not. check_valid_decomp(compmap, start, end, block_per_pe)) return
 
+    buffer_shape_2d = [block_per_pe / 4, 4]
+    buffer_shape_3d = [block_per_pe / 4, 2, 2]
+
     file = io_handler%create_file(file_name)
 
     allocate(write_buffer_1d(start:end), source=real(this_rank() + VAL, kind=CABLE_NETCDF_REAL64_KIND))
-    write_buffer_2d = reshape(write_buffer_1d, [block_per_pe, 1])
-    write_buffer_3d = reshape(write_buffer_1d, [block_per_pe, 1, 1])
+    write_buffer_2d = reshape(write_buffer_1d, buffer_shape_2d)
+    write_buffer_3d = reshape(write_buffer_1d, buffer_shape_3d)
 
     allocate(read_buffer_1d(start:end), source=real(0, kind=CABLE_NETCDF_REAL64_KIND))
-    read_buffer_2d = reshape(read_buffer_1d, [block_per_pe, 1])
-    read_buffer_3d = reshape(read_buffer_1d, [block_per_pe, 1, 1])
+    read_buffer_2d = reshape(read_buffer_1d, buffer_shape_2d)
+    read_buffer_3d = reshape(read_buffer_1d, buffer_shape_3d)
 
     decomp = io_handler%create_decomp(compmap, dims=[LEN], type=CABLE_NETCDF_DOUBLE)
 
