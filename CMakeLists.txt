@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24.2)
 
 project(
     MOCK_CABLE
-    LANGUAGES Fortran
+    LANGUAGES C Fortran
 )
 
 option(MOCK_CABLE_MPI "Build the MPI executable" OFF)
@@ -26,6 +26,8 @@ if (MOCK_CABLE_MPI)
         FortunoMPI
         GIT_REPOSITORY https://github.com/fortuno-repos/fortuno
         GIT_TAG main
+        PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/mpi_base_types.patch
+        UPDATE_DISCONNECTED ON
     )
     FetchContent_MakeAvailable(FortunoMPI)
     set(fortuno_libs Fortuno::fortuno_mpi)
@@ -61,8 +63,23 @@ add_library(
     src/output_module.F90
     src/mpi_serial_stub_module.F90
     src/partition.F90
+    src/cable_netcdf.F90
+    src/cable_netcdf_stub_types.F90
+    src/cable_netcdf_internal.F90
+    src/cable_netcdf_nf90.F90
+    src/array_utils.F90
 )
-target_link_libraries(common PUBLIC PkgConfig::NETCDF $<$<BOOL:${MOCK_CABLE_MPI}>:MPI::MPI_Fortran>)
+if(MOCK_CABLE_PIO)
+    target_sources(common PRIVATE src/cable_netcdf_pio.F90)
+else()
+    target_sources(common PRIVATE src/cable_netcdf_pio_stub.F90)
+endif()
+target_link_libraries(common
+    PUBLIC
+        PkgConfig::NETCDF
+        $<$<BOOL:${MOCK_CABLE_MPI}>:MPI::MPI_Fortran>
+        $<$<BOOL:${MOCK_CABLE_PIO}>:PIO::PIO_Fortran>
+)
 
 if(MOCK_CABLE_MPI)
     target_compile_definitions(common PRIVATE __MPI__)
@@ -80,8 +97,11 @@ endif()
 add_executable(
     mock-tests
     test/mock_tests.F90
+    test/fixtures.F90
+    test/file_utils.F90
     test/test_common.F90
     test/test_time.F90
+    test/test_cable_netcdf.F90
 )
 if (MOCK_CABLE_MPI)
   target_sources(mock-tests PRIVATE test/fortuno_interface_mpi.f90)
@@ -99,27 +119,32 @@ add_executable(
     test/simple4by4.F90
 )
 
+add_executable(
+    test-cable-netcdf-write-darray
+    test/test_cable_netcdf_write_darray.F90
+)
+
 target_link_libraries(mock-tests PRIVATE common ${fortuno_libs})
 target_link_libraries(mock-cable PRIVATE common)
 target_link_libraries(simple4by4 PRIVATE common)
+target_link_libraries(test-cable-netcdf-write-darray PRIVATE common)
 
 install(TARGETS mock-tests RUNTIME)
 install(TARGETS mock-cable RUNTIME)
 install(TARGETS simple4by4 RUNTIME)
+install(TARGETS test-cable-netcdf-write-darray RUNTIME)
 
-# Register tests by suite
-foreach (testsuite IN ITEMS
-    "common_tests"
-    "time_tests"
+if(MOCK_CABLE_MPI)
+    add_test(NAME mock-tests-serial
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ~parallel
     )
-    if(MOCK_CABLE_MPI)
-        add_test(NAME ${testsuite}
-            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:mock-tests> ${testsuite}
-        )
-        set_tests_properties(${testsuite} PROPERTIES PROCESSORS 1)
-    else()
-        add_test(NAME ${testsuite}
-            COMMAND $<TARGET_FILE:mock-tests> ${testsuite}
-        )
-    endif()
-endforeach ()
+    set_tests_properties(mock-tests-serial PROPERTIES PROCESSORS 1)
+    add_test(NAME mock-tests-parallel
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:mock-tests> parallel
+    )
+    set_tests_properties(mock-tests-parallel PROPERTIES PROCESSORS 4)
+else()
+    add_test(NAME mock-tests-serial
+        COMMAND $<TARGET_FILE:mock-tests> ~parallel
+    )
+endif()
