@@ -1,7 +1,6 @@
 module test_cable_netcdf
   use fortuno_interface_m, only: check, check_failed, suite, test_list, num_ranks, this_rank, all_equal, all_close
-  use file_utils, only: file_exists
-  use fixtures_mod, only: test_case_nf90, test_case_pio
+  use fixtures_mod, only: test_case_nf90, test_case_pio, io_handler_factory_interface
   use cable_netcdf_mod
   use cable_netcdf_nf90_mod
   use cable_netcdf_pio_mod
@@ -54,9 +53,10 @@ contains
 
   end function check_valid_decomp
 
-  subroutine test_write_read_darray_int32(io_handler, file_name)
-    class(cable_netcdf_io_t), intent(inout) :: io_handler
+  subroutine test_write_read_darray_int32(io_handler_factory, file_name)
+    procedure(io_handler_factory_interface), pointer, intent(in) :: io_handler_factory
     character(*), intent(in) :: file_name
+    class(cable_netcdf_io_t), allocatable :: io_handler
     class(cable_netcdf_file_t), allocatable :: file
     class(cable_netcdf_decomp_t), allocatable :: decomp
     integer, allocatable :: compmap(:)
@@ -68,6 +68,10 @@ contains
 
     buffer_shape_2d = [block_per_pe / 4, 4]
     buffer_shape_3d = [block_per_pe / 4, 2, 2]
+
+    io_handler = io_handler_factory()
+
+    call io_handler%init()
 
     file = io_handler%create_file(file_name)
 
@@ -105,11 +109,14 @@ contains
 
     call file%close()
 
+    call io_handler%finalise()
+
   end subroutine test_write_read_darray_int32
 
-  subroutine test_write_read_darray_real32(io_handler, file_name)
-    class(cable_netcdf_io_t), intent(inout) :: io_handler
+  subroutine test_write_read_darray_real32(io_handler_factory, file_name)
+    procedure(io_handler_factory_interface), pointer, intent(in) :: io_handler_factory
     character(*), intent(in) :: file_name
+    class(cable_netcdf_io_t), allocatable :: io_handler
     class(cable_netcdf_file_t), allocatable :: file
     class(cable_netcdf_decomp_t), allocatable :: decomp
     integer, allocatable :: compmap(:)
@@ -121,6 +128,10 @@ contains
 
     buffer_shape_2d = [block_per_pe / 4, 4]
     buffer_shape_3d = [block_per_pe / 4, 2, 2]
+
+    io_handler = io_handler_factory()
+
+    call io_handler%init()
 
     file = io_handler%create_file(file_name)
 
@@ -158,11 +169,14 @@ contains
 
     call file%close()
 
+    call io_handler%finalise()
+
   end subroutine test_write_read_darray_real32
 
-  subroutine test_write_read_darray_real64(io_handler, file_name)
-    class(cable_netcdf_io_t), intent(inout) :: io_handler
+  subroutine test_write_read_darray_real64(io_handler_factory, file_name)
+    procedure(io_handler_factory_interface), pointer, intent(in) :: io_handler_factory
     character(*), intent(in) :: file_name
+    class(cable_netcdf_io_t), allocatable :: io_handler
     class(cable_netcdf_file_t), allocatable :: file
     class(cable_netcdf_decomp_t), allocatable :: decomp
     integer, allocatable :: compmap(:)
@@ -174,6 +188,10 @@ contains
 
     buffer_shape_2d = [block_per_pe / 4, 4]
     buffer_shape_3d = [block_per_pe / 4, 2, 2]
+
+    io_handler = io_handler_factory()
+
+    call io_handler%init()
 
     file = io_handler%create_file(file_name)
 
@@ -210,6 +228,8 @@ contains
     call check(all_close(reshape(write_buffer_3d, [block_per_pe]), reshape(read_buffer_3d, [block_per_pe])))
 
     call file%close()
+
+    call io_handler%finalise()
 
   end subroutine test_write_read_darray_real64
 

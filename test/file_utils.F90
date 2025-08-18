@@ -1,11 +1,14 @@
 module file_utils
+  use fortuno_interface_m, only: global_comm
+  use mpi_module, only: mpi_grp_t
   implicit none
 
   private
 
   public :: &
     file_exists, &
-    file_delete
+    file_delete, &
+    file_delete_collective
 
 contains
 
@@ -21,6 +24,14 @@ contains
     if (.not. file_exists(file_name)) return
     open(file=file_name, newunit=file_unit)
     close(file_unit, status="delete")
+  end subroutine
+
+  subroutine file_delete_collective(file_name)
+    character(len=*), intent(in) :: file_name
+    type(mpi_grp_t) :: mpi_grp
+    mpi_grp = mpi_grp_t(global_comm())
+    call mpi_grp%barrier()
+    if (mpi_grp%rank == 0) call file_delete(file_name)
   end subroutine
 
 end module file_utils
