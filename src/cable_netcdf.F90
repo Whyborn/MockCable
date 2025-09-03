@@ -56,6 +56,10 @@ module cable_netcdf_mod
     procedure(cable_netcdf_file_put_att_global_string), deferred :: put_att_global_string
     procedure(cable_netcdf_file_put_att_var_string), deferred :: put_att_var_string
     generic :: put_att => put_att_global_string, put_att_var_string
+    procedure(cable_netcdf_file_get_att_global_string), deferred :: get_att_global_string
+    procedure(cable_netcdf_file_get_att_var_string), deferred :: get_att_var_string
+    generic :: get_att => get_att_global_string, get_att_var_string
+    procedure(cable_netcdf_file_inq_dim_len), deferred :: inq_dim_len
     procedure(cable_netcdf_file_put_var_int32_1d), deferred :: put_var_int32_1d
     procedure(cable_netcdf_file_put_var_int32_2d), deferred :: put_var_int32_2d
     procedure(cable_netcdf_file_put_var_int32_3d), deferred :: put_var_int32_3d
@@ -144,6 +148,24 @@ module cable_netcdf_mod
       import cable_netcdf_file_t
       class(cable_netcdf_file_t), intent(inout) :: this
       character(len=*), intent(in) :: var_name, att_name, att_value
+    end subroutine
+    subroutine cable_netcdf_file_get_att_global_string(this, att_name, att_value)
+      import cable_netcdf_file_t
+      class(cable_netcdf_file_t), intent(inout) :: this
+      character(len=*), intent(in) :: att_name
+      character(len=*), intent(out) :: att_value
+    end subroutine
+    subroutine cable_netcdf_file_get_att_var_string(this, var_name, att_name, att_value)
+      import cable_netcdf_file_t
+      class(cable_netcdf_file_t), intent(inout) :: this
+      character(len=*), intent(in) :: var_name, att_name
+      character(len=*), intent(out) :: att_value
+    end subroutine
+    subroutine cable_netcdf_file_inq_dim_len(this, dim_name, dim_len)
+      import cable_netcdf_file_t
+      class(cable_netcdf_file_t), intent(inout) :: this
+      character(len=*), intent(in) :: dim_name
+      integer, intent(out) :: dim_len
     end subroutine
     subroutine cable_netcdf_file_put_var_int32_1d(this, var_name, values, start, count)
       import cable_netcdf_file_t, CABLE_NETCDF_INT32_KIND

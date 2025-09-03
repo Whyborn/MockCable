@@ -31,6 +31,9 @@ module cable_netcdf_stub_types_mod
     procedure :: def_var => cable_netcdf_stub_file_def_var
     procedure :: put_att_global_string => cable_netcdf_stub_file_put_att_global_string
     procedure :: put_att_var_string => cable_netcdf_stub_file_put_att_var_string
+    procedure :: get_att_global_string => cable_netcdf_stub_file_get_att_global_string
+    procedure :: get_att_var_string => cable_netcdf_stub_file_get_att_var_string
+    procedure :: inq_dim_len => cable_netcdf_stub_file_inq_dim_len
     procedure :: put_var_int32_1d => cable_netcdf_stub_file_put_var_int32_1d
     procedure :: put_var_int32_2d => cable_netcdf_stub_file_put_var_int32_2d
     procedure :: put_var_int32_3d => cable_netcdf_stub_file_put_var_int32_3d
@@ -133,6 +136,27 @@ contains
   subroutine cable_netcdf_stub_file_put_att_var_string(this, var_name, att_name, att_value)
     class(cable_netcdf_stub_file_t), intent(inout) :: this
     character(len=*), intent(in) :: var_name, att_name, att_value
+  end subroutine
+
+  subroutine cable_netcdf_stub_file_get_att_global_string(this, att_name, att_value)
+    class(cable_netcdf_stub_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: att_name
+    character(len=*), intent(out) :: att_value
+    att_value = ""
+  end subroutine
+
+  subroutine cable_netcdf_stub_file_get_att_var_string(this, var_name, att_name, att_value)
+    class(cable_netcdf_stub_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name, att_name
+    character(len=*), intent(out) :: att_value
+    att_value = ""
+  end subroutine
+
+  subroutine cable_netcdf_stub_file_inq_dim_len(this, dim_name, dim_len)
+    class(cable_netcdf_stub_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: dim_name
+    integer, intent(out) :: dim_len
+    dim_len = 0
   end subroutine
 
   subroutine cable_netcdf_stub_file_put_var_int32_1d(this, var_name, values, start, count)

@@ -16,6 +16,7 @@ module cable_netcdf_pio_mod
   use pio, only: pio_def_dim
   use pio, only: pio_def_var
   use pio, only: pio_put_att
+  use pio, only: pio_get_att
   use pio, only: pio_put_var
   use pio, only: pio_get_var
   use pio, only: pio_setframe
@@ -24,6 +25,7 @@ module cable_netcdf_pio_mod
   use pio, only: pio_strerror
   use pio, only: pio_enddef
   use pio, only: pio_inq_dimid
+  use pio, only: pio_inquire_dimension
   use pio, only: pio_inq_varid
   use pio, only: pio_finalize
   use pio, only: PIO_MAX_NAME
@@ -72,6 +74,9 @@ module cable_netcdf_pio_mod
     procedure :: def_var => cable_netcdf_pio_file_def_var
     procedure :: put_att_global_string => cable_netcdf_pio_file_put_att_global_string
     procedure :: put_att_var_string => cable_netcdf_pio_file_put_att_var_string
+    procedure :: get_att_global_string => cable_netcdf_pio_file_get_att_global_string
+    procedure :: get_att_var_string => cable_netcdf_pio_file_get_att_var_string
+    procedure :: inq_dim_len => cable_netcdf_pio_file_inq_dim_len
     procedure :: put_var_int32_1d => cable_netcdf_pio_file_put_var_int32_1d
     procedure :: put_var_int32_2d => cable_netcdf_pio_file_put_var_int32_2d
     procedure :: put_var_int32_3d => cable_netcdf_pio_file_put_var_int32_3d
@@ -256,6 +261,31 @@ contains
     type(pio_var_desc_t) :: var_desc
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
     call check_pio(pio_put_att(this%pio_file_desc, var_desc, att_name, att_value))
+  end subroutine
+
+  subroutine cable_netcdf_pio_file_get_att_global_string(this, att_name, att_value)
+    class(cable_netcdf_pio_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: att_name
+    character(len=*), intent(out) :: att_value
+    call check_pio(pio_get_att(this%pio_file_desc, PIO_GLOBAL, att_name, att_value))
+  end subroutine
+
+  subroutine cable_netcdf_pio_file_get_att_var_string(this, var_name, att_name, att_value)
+    class(cable_netcdf_pio_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name, att_name
+    character(len=*), intent(out) :: att_value
+    type(pio_var_desc_t) :: var_desc
+    call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
+    call check_pio(pio_get_att(this%pio_file_desc, var_desc, att_name, att_value))
+  end subroutine
+
+  subroutine cable_netcdf_pio_file_inq_dim_len(this, dim_name, dim_len)
+    class(cable_netcdf_pio_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: dim_name
+    integer, intent(out) :: dim_len
+    integer :: dimid
+    call check_pio(pio_inq_dimid(this%pio_file_desc, dim_name, dimid))
+    call check_pio(pio_inquire_dimension(this%pio_file_desc, dimid, len=dim_len))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_int32_1d(this, var_name, values, start, count)
