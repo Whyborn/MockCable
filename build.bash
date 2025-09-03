@@ -55,11 +55,11 @@ if module is-loaded openmpi; then
 fi
 
 if [ ${pio} -eq 1 ]; then
-    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/parallelio_install_no_timing"
-    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-c-4.9.2-2q3nnsuhdsuxleltgfw4ht7ww5is7vgg"
-    prepend_path PKG_CONFIG_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-c-4.9.2-2q3nnsuhdsuxleltgfw4ht7ww5is7vgg/lib/pkgconfig"
-    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-fortran-4.6.1-n5wgag436hhdpaug4fiwhjhhnlf2pj7k"
-    prepend_path PKG_CONFIG_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-fortran-4.6.1-n5wgag436hhdpaug4fiwhjhhnlf2pj7k/lib/pkgconfig"
+    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/parallelio_install"
+    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-c-4.9.2-oxepdmgcx6raxo4vi4teu45qqr63v3uj"
+    prepend_path PKG_CONFIG_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-c-4.9.2-oxepdmgcx6raxo4vi4teu45qqr63v3uj/lib/pkgconfig"
+    prepend_path CMAKE_PREFIX_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-fortran-4.6.1-eq777uogbelnhv43ln6jyub2gbmos42x"
+    prepend_path PKG_CONFIG_PATH "/g/data/tm70/sb8430/spack/0.22/release/linux-rocky8-x86_64_v4/intel-2021.10.0/netcdf-fortran-4.6.1-eq777uogbelnhv43ln6jyub2gbmos42x/lib/pkgconfig"
 fi
 
 cmake_args+=(-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON)
