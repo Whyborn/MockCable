@@ -134,15 +134,21 @@ FUNCTION find_largest_element_less_than_sorted(Values, UpperLimit)&
   ! find the first index that is greater than our desired index
   DO WHILE (LowerBound <= UpperBound)
     Middle = (LowerBound + UpperBound) / 2
-    IF (Values(Middle) < UpperLimit) THEN
-      IndexOfLargest = Middle
-      LowerBound = Middle + 1
+    IF (Values(Middle) <= UpperLimit) THEN
+      ! The middle index is less than or equal the desired index
+      IF (Values(Middle+1) > UpperLimit) THEN
+        EXIT
+      ELSE
+        ! Adjust the lower bound of our bracket
+        LowerBound = Middle + 1
+      END IF
     ELSE
+      ! Adjust the upper bound of our bracket
       UpperBound = Middle - 1
     END IF
   END DO
 
-  !IndexOfLargest = Middle
+  IndexOfLargest = Middle
 
 END FUNCTION find_largest_element_less_than_sorted
 
