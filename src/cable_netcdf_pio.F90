@@ -143,6 +143,23 @@ contains
     end if
   end subroutine check_pio
 
+  subroutine get_start_count_nonoptionals(start_nonopt, count_nonopt, shape, start, count)
+    integer, allocatable, intent(out) :: start_nonopt(:), count_nonopt(:)
+    integer, intent(in) :: shape(:)
+    integer, optional, intent(in) :: start(:), count(:)
+    if (present(start)) then
+      start_nonopt = start
+    else
+      allocate(start_nonopt, mold=shape)
+      start_nonopt = 1
+    end if
+    if (present(count)) then
+      count_nonopt = count
+    else
+      allocate(count_nonopt, source=shape)
+    end if
+  end subroutine
+
   function cable_netcdf_pio_io_constructor(mpi_grp) result(this)
     type(cable_netcdf_pio_io_t) :: this
     type(mpi_grp_t), intent(in) :: mpi_grp
@@ -293,13 +310,11 @@ contains
     character(len=*), intent(in) :: var_name
     integer(kind=CABLE_NETCDF_INT32_KIND), intent(in) :: values(:)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_int32_2d(this, var_name, values, start, count)
@@ -307,13 +322,11 @@ contains
     character(len=*), intent(in) :: var_name
     integer(kind=CABLE_NETCDF_INT32_KIND), intent(in) :: values(:, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_int32_3d(this, var_name, values, start, count)
@@ -321,13 +334,11 @@ contains
     character(len=*), intent(in) :: var_name
     integer(kind=CABLE_NETCDF_INT32_KIND), intent(in) :: values(:, :, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_real32_1d(this, var_name, values, start, count)
@@ -335,13 +346,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL32_KIND), intent(in) :: values(:)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_real32_2d(this, var_name, values, start, count)
@@ -349,13 +358,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL32_KIND), intent(in) :: values(:, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_real32_3d(this, var_name, values, start, count)
@@ -363,13 +370,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL32_KIND), intent(in) :: values(:, :, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_real64_1d(this, var_name, values, start, count)
@@ -377,13 +382,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL64_KIND), intent(in) :: values(:)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_real64_2d(this, var_name, values, start, count)
@@ -391,13 +394,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL64_KIND), intent(in) :: values(:, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_var_real64_3d(this, var_name, values, start, count)
@@ -405,13 +406,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL64_KIND), intent(in) :: values(:, :, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_put_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_put_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_write_darray_int32(this, var_name, values, decomp, fill_value, frame)
@@ -602,13 +601,11 @@ contains
     character(len=*), intent(in) :: var_name
     integer(kind=CABLE_NETCDF_INT32_KIND), intent(out) :: values(:)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_int32_2d(this, var_name, values, start, count)
@@ -616,13 +613,11 @@ contains
     character(len=*), intent(in) :: var_name
     integer(kind=CABLE_NETCDF_INT32_KIND), intent(out) :: values(:, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_int32_3d(this, var_name, values, start, count)
@@ -630,13 +625,11 @@ contains
     character(len=*), intent(in) :: var_name
     integer(kind=CABLE_NETCDF_INT32_KIND), intent(out) :: values(:, :, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_real32_1d(this, var_name, values, start, count)
@@ -644,13 +637,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL32_KIND), intent(out) :: values(:)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_real32_2d(this, var_name, values, start, count)
@@ -658,13 +649,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL32_KIND), intent(out) :: values(:, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_real32_3d(this, var_name, values, start, count)
@@ -672,13 +661,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL32_KIND), intent(out) :: values(:, :, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_real64_1d(this, var_name, values, start, count)
@@ -686,13 +673,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL64_KIND), intent(out) :: values(:)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_real64_2d(this, var_name, values, start, count)
@@ -700,13 +685,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL64_KIND), intent(out) :: values(:, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_get_var_real64_3d(this, var_name, values, start, count)
@@ -714,13 +697,11 @@ contains
     character(len=*), intent(in) :: var_name
     real(kind=CABLE_NETCDF_REAL64_KIND), intent(out) :: values(:, :, :)
     integer, intent(in), optional :: start(:), count(:)
+    integer, allocatable :: start_nonopt(:), count_nonopt(:)
     type(pio_var_desc_t) :: var_desc
+    call get_start_count_nonoptionals(start_nonopt, count_nonopt, shape(values), start, count)
     call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
-    if (present(start) .and. present(count)) then
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, start, count, values))
-    else
-      call check_pio(pio_get_var(this%pio_file_desc, var_desc, values))
-    end if
+    call check_pio(pio_get_var(this%pio_file_desc, var_desc, start_nonopt, count_nonopt, values))
   end subroutine
 
   subroutine cable_netcdf_pio_file_read_darray_int32(this, var_name, values, decomp, frame)
