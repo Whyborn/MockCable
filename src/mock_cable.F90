@@ -5,10 +5,10 @@ PROGRAM mock_cable
   USE time_module, ONLY: SecsInDay, set_calendar, days_in_year
   USE meteorology_module, ONLY: MetType, prepare_meteorology, get_meteorology,&
     write_meteorology, finalise_meteorology
-  USE output_module, ONLY: initialise_output_module, mpi_info_hints_write
-  USE domain_module, ONLY: process_landmask, ProcessDomain, GlobalDomain
-  use partition_mod, only: partition_mod_init, partition_mod_end, rectangular_partitioning
+  USE output_module, ONLY: mpi_info_hints_write
   use datasetreader_module, only: mpi_info_hints_read
+  use cable_netcdf_mod, only: cable_netcdf_mod_init, cable_netcdf_mod_end
+  use land_decomp_mod, only: land_decomp_t, land_decomp_init
 
   IMPLICIT NONE
 
@@ -17,12 +17,11 @@ PROGRAM mock_cable
   logical :: write_output = .true.
   CHARACTER(20) :: Calendar
   CHARACTER(200) :: LandmaskFile
-  TYPE(ProcessDomain) :: ProcDomain
-  TYPE(GlobalDomain) :: GlobDomain
   TYPE(MetType) :: Met
   TYPE(mpi_grp_t) :: mpi_grp
+  type(land_decomp_t) :: land_decomp
 
-  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, rectangular_partitioning, mpi_info_hints_write, mpi_info_hints_read
+  NAMELIST /CABLENML/ StartYear, EndYear, Calendar, Dt, LandmaskFile, mpi_info_hints_write, mpi_info_hints_read
   NAMELIST /DEBUGNML/ write_output
 
   OPEN(NEWUNIT=nmlUnit, FILE='cable.nml', STATUS='OLD', ACTION='READ')
@@ -34,33 +33,32 @@ PROGRAM mock_cable
   CALL mpi_mod_init()
   mpi_grp = mpi_grp_t()
 
-  ! Initialise the domain
-  CALL process_landmask(LandmaskFile, ProcDomain, GlobDomain, mpi_grp)
+  call cable_netcdf_mod_init(mpi_grp)
 
-  ! call partition_mod_init(GlobDomain%GlobalLandmask, mpi_grp)
-
-  ! Initialise the output module with the MPI/process information
-  CALL initialise_output_module(ProcDomain, mpi_grp)
+  ! TODO(Sean): replace LandmaskFile argument with a derived type for namelist
+  ! parameters. Reasoning for this is that the land mask can be initialised from
+  ! multiple sources (e.g. the met file or standalone land mask).
+  call land_decomp_init(LandmaskFile, mpi_grp, land_decomp)
 
   ! Set the calendar for the run
   CALL set_calendar(Calendar)
 
   ! Prepare the meteorology module
-  CALL prepare_meteorology(Dt, Met, ProcDomain, GlobDomain, mpi_grp, write_output)
+  CALL prepare_meteorology(Dt, Met, land_decomp, write_output)
 
   DO Year = StartYear, EndYear
     ! Compute number of steps in the year
     StepsInYear = (days_in_year(Year) * SecsInDay) / Dt
     DO TimeStep = 1, StepsInYear
-      CALL get_meteorology(mpi_grp, Year, TimeStep, Met)
+      CALL get_meteorology(Year, TimeStep, Met)
       rain_sum = sum(Met%Rain)
-      if (write_output) CALL write_meteorology(mpi_grp, Met, TimeStep)
+      if (write_output) CALL write_meteorology(Met, TimeStep)
     END DO
   END DO
 
   ! Close everything down
-  call partition_mod_end()
   CALL finalise_meteorology(write_output)
+  call cable_netcdf_mod_end()
   CALL mpi_mod_end()
   
 END PROGRAM mock_cable
