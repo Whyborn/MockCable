@@ -16,6 +16,7 @@ module cable_netcdf_mod
     cable_netcdf_mod_init, &
     cable_netcdf_mod_end, &
     cable_netcdf_create_file, &
+    cable_netcdf_open_file, &
     cable_netcdf_create_decomp
 
   public :: &
