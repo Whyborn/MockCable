@@ -15,6 +15,7 @@ module cable_netcdf_pio_mod
   use pio, only: pio_syncfile
   use pio, only: pio_def_dim
   use pio, only: pio_def_var
+  use pio, only: pio_def_var_chunking
   use pio, only: pio_put_att
   use pio, only: pio_put_var
   use pio, only: pio_get_var
@@ -41,6 +42,8 @@ module cable_netcdf_pio_mod
 
   private
   public :: cable_netcdf_pio_io_t
+
+  integer, parameter :: PIO_CHUNKED = 0, PIO_CONTIGOUS = 1
 
   type, extends(cable_netcdf_decomp_t) :: cable_netcdf_pio_decomp_t
     type(pio_io_desc_t), private :: pio_io_desc
@@ -70,6 +73,7 @@ module cable_netcdf_pio_mod
     procedure :: sync => cable_netcdf_pio_file_sync
     procedure :: def_dims => cable_netcdf_pio_file_def_dims
     procedure :: def_var => cable_netcdf_pio_file_def_var
+    procedure :: def_var_chunking => cable_netcdf_pio_file_def_var_chunking
     procedure :: put_att_global_string => cable_netcdf_pio_file_put_att_global_string
     procedure :: put_att_var_string => cable_netcdf_pio_file_put_att_var_string
     procedure :: put_var_int32_1d => cable_netcdf_pio_file_put_var_int32_1d
@@ -126,6 +130,19 @@ contains
       ! TODO: abort
     end select
   end function type_pio
+
+  function storage_pio(storage)
+    integer, intent(in) :: storage
+    integer :: storage_pio
+    select case(storage)
+    case(CABLE_NETCDF_CONTIGUOUS)
+      storage_pio = PIO_CONTIGOUS
+    case(CABLE_NETCDF_CHUNKED)
+      storage_pio = PIO_CHUNKED
+    case default
+      ! TODO: abort
+    end select
+  end function storage_pio
 
   subroutine check_pio(status)
     integer, intent(in) :: status
@@ -242,6 +259,15 @@ contains
       call check_pio(pio_inq_dimid(this%pio_file_desc, dim_names(i), dimids(i)))
     end do
     call check_pio(pio_def_var(this%pio_file_desc, var_name, type_pio(type), dimids, tmp))
+  end subroutine
+
+  subroutine cable_netcdf_pio_file_def_var_chunking(this, var_name, storage, chunksizes)
+    class(cable_netcdf_pio_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    integer, intent(in) :: storage, chunksizes(:)
+    type(pio_var_desc_t) :: var_desc
+    call check_pio(pio_inq_varid(this%pio_file_desc, var_name, var_desc))
+    call check_pio(pio_def_var_chunking(this%pio_file_desc, var_desc, storage_pio(storage), chunksizes))
   end subroutine
 
   subroutine cable_netcdf_pio_file_put_att_global_string(this, att_name, att_value)

@@ -25,6 +25,8 @@ module cable_netcdf_mod
     CABLE_NETCDF_INT, &
     CABLE_NETCDF_FLOAT, &
     CABLE_NETCDF_DOUBLE, &
+    CABLE_NETCDF_CONTIGUOUS, &
+    CABLE_NETCDF_CHUNKED, &
     CABLE_NETCDF_FILE_MAX_STR_LEN, &
     CABLE_NETCDF_MAX_RANK, &
     CABLE_NETCDF_UNLIMITED
@@ -34,6 +36,12 @@ module cable_netcdf_mod
       CABLE_NETCDF_INT, &
       CABLE_NETCDF_FLOAT, &
       CABLE_NETCDF_DOUBLE
+  end enum
+
+  enum, bind(c)
+    enumerator :: &
+      CABLE_NETCDF_CONTIGUOUS, &
+      CABLE_NETCDF_CHUNKED
   end enum
 
   integer, parameter :: CABLE_NETCDF_FILE_MAX_STR_LEN = 200
@@ -53,6 +61,7 @@ module cable_netcdf_mod
     procedure(cable_netcdf_file_sync), deferred :: sync
     procedure(cable_netcdf_file_def_dims), deferred :: def_dims
     procedure(cable_netcdf_file_def_var), deferred :: def_var
+    procedure(cable_netcdf_file_def_var_chunking), deferred :: def_var_chunking
     procedure(cable_netcdf_file_put_att_global_string), deferred :: put_att_global_string
     procedure(cable_netcdf_file_put_att_var_string), deferred :: put_att_var_string
     generic :: put_att => put_att_global_string, put_att_var_string
@@ -134,6 +143,12 @@ module cable_netcdf_mod
       class(cable_netcdf_file_t), intent(inout) :: this
       character(len=*), intent(in) :: var_name, dim_names(:)
       integer, intent(in) :: type
+    end subroutine
+    subroutine cable_netcdf_file_def_var_chunking(this, var_name, storage, chunksizes)
+      import cable_netcdf_file_t
+      class(cable_netcdf_file_t), intent(inout) :: this
+      character(len=*), intent(in) :: var_name
+      integer, intent(in) :: storage, chunksizes(:)
     end subroutine
     subroutine cable_netcdf_file_put_att_global_string(this, att_name, att_value)
       import cable_netcdf_file_t

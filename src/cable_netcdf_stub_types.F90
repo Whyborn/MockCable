@@ -29,6 +29,7 @@ module cable_netcdf_stub_types_mod
     procedure :: sync => cable_netcdf_stub_file_sync
     procedure :: def_dims => cable_netcdf_stub_file_def_dims
     procedure :: def_var => cable_netcdf_stub_file_def_var
+    procedure :: def_var_chunking => cable_netcdf_stub_file_def_var_chunking
     procedure :: put_att_global_string => cable_netcdf_stub_file_put_att_global_string
     procedure :: put_att_var_string => cable_netcdf_stub_file_put_att_var_string
     procedure :: put_var_int32_1d => cable_netcdf_stub_file_put_var_int32_1d
@@ -123,6 +124,12 @@ contains
     class(cable_netcdf_stub_file_t), intent(inout) :: this
     character(len=*), intent(in) :: var_name, dim_names(:)
     integer, intent(in) :: type
+  end subroutine
+
+  subroutine cable_netcdf_stub_file_def_var_chunking(this, var_name, storage, chunksizes)
+    class(cable_netcdf_stub_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    integer, intent(in) :: storage, chunksizes(:)
   end subroutine
 
   subroutine cable_netcdf_stub_file_put_att_global_string(this, att_name, att_value)
