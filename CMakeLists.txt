@@ -26,8 +26,6 @@ if (MOCK_CABLE_MPI)
         FortunoMPI
         GIT_REPOSITORY https://github.com/fortuno-repos/fortuno
         GIT_TAG main
-        PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/mpi_base_types.patch
-        UPDATE_DISCONNECTED ON
     )
     FetchContent_MakeAvailable(FortunoMPI)
     set(fortuno_libs Fortuno::fortuno_mpi)
