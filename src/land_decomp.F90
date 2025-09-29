@@ -30,12 +30,6 @@ contains
 
     call land_mask_init(land_mask_file_name, land_decomp%land_mask)
 
-    ! Note: work is distributed by allocating land points to each rank where the
-    ! difference between the number of land points assigned to different ranks
-    ! is at most 1. This leads to load balance issues because calculations are
-    ! done on "patches" whose number differ between landpoints. This can be
-    ! improved in future by distributing the compute based on patches with
-    ! additional care taken when aggregating patches for each grid cell.
 
     call init_global_decomp_path(land_decomp%land_mask, land_decomp%land_grid_offset)
 
