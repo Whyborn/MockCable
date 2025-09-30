@@ -87,7 +87,7 @@ SUBROUTINE prepare_meteorology(Timestep, Met, land_decomp, write_output)
   ! Set the longitude/latitude axes
   call output_file%def_var("lon", ["lon"], CABLE_NETCDF_FLOAT)
   call output_file%def_var("lat", ["lat"], CABLE_NETCDF_FLOAT)
-  call output_file%def_var("time", ["time"], CABLE_NETCDF_FLOAT)
+  call output_file%def_var("time", ["time"], CABLE_NETCDF_INT)
 
   ! Now initialise the meteorology variables
   call output_file%def_var("LWdown", ["lon ", "lat ", "time"], CABLE_NETCDF_FLOAT)
@@ -137,6 +137,7 @@ SUBROUTINE write_meteorology(Met, Time)
   TYPE(MetType), INTENT(IN) :: Met
   INTEGER, INTENT(IN) :: Time
 
+  call output_file%put_var("time", Time, start=[Time])
   call output_file%write_darray("Rainf", Met%Rain, decomp, frame=Time)
   call output_file%write_darray("Tair", Met%Temperature, decomp, frame=Time)
   call output_file%write_darray("wind", Met%Wind, decomp, frame=Time)
