@@ -35,9 +35,6 @@ PROGRAM mock_cable
 
   call cable_netcdf_mod_init(mpi_grp)
 
-  ! TODO(Sean): replace LandmaskFile argument with a derived type for namelist
-  ! parameters. Reasoning for this is that the land mask can be initialised from
-  ! multiple sources (e.g. the met file or standalone land mask).
   call land_decomp_init(LandmaskFile, mpi_grp, land_decomp)
 
   ! Set the calendar for the run
