@@ -26,8 +26,6 @@ if (MOCK_CABLE_MPI)
         FortunoMPI
         GIT_REPOSITORY https://github.com/fortuno-repos/fortuno
         GIT_TAG main
-        PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/mpi_base_types.patch
-        UPDATE_DISCONNECTED ON
     )
     FetchContent_MakeAvailable(FortunoMPI)
     set(fortuno_libs Fortuno::fortuno_mpi)
@@ -68,6 +66,8 @@ add_library(
     src/cable_netcdf_internal.F90
     src/cable_netcdf_nf90.F90
     src/array_utils.F90
+    src/land_mask.F90
+    src/land_decomp.F90
 )
 if(MOCK_CABLE_PIO)
     target_sources(common PRIVATE src/cable_netcdf_pio.F90)

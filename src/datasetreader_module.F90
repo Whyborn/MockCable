@@ -1,19 +1,13 @@
 MODULE datasetreader_module
 
+USE mpi_module, ONLY: mpi_info_hints_t, mpi_info_set_hints
 USE iso_fortran_env, ONLY: ERROR_UNIT, OUTPUT_UNIT
-#ifdef __MPI__
-USE mpi_f08, ONLY: MPI_INFO_NULL, MPI_Info, MPI_Info_create
-#else
-USE mpi_serial_stub_module, ONLY: MPI_Info
-#endif
-USE mpi_module, ONLY: mpi_grp_t, mpi_info_hints_t, mpi_info_set_hints
-USE netcdf
-USE domain_module, ONLY: ProcessDomain
 USE time_module, ONLY: days_in_month, is_leapyear, leap_day,&
                        read_time_string, intervals_since
-USE common_module, ONLY: sort, get_dimid, get_varid, handle_ncstat, LonNames,&
-                         LatNames, TimeNames, approx_equal,&
+USE common_module, ONLY: sort, get_dimid, handle_ncstat, approx_equal,&
                          find_largest_element_less_than_sorted
+use land_decomp_mod, only: land_decomp_t, io_decomp_grid
+use cable_netcdf_mod
 
 IMPLICIT NONE
 
@@ -40,28 +34,24 @@ TYPE DatasetReader
   ! want it as an integer
   INTEGER :: TimestepSize
 
-  ! List of netCDF variable names to search for
-  CHARACTER(LEN=10), DIMENSION(:), ALLOCATABLE :: VarNames
+  ! NetCDF variable name
+  CHARACTER(LEN=10), ALLOCATABLE :: VarName
 
   ! ID for the current file and variable
-  INTEGER :: CurrentFileID = -1, CurrentVarID, CurrentFileIndex
+  INTEGER :: CurrentFileIndex
 
-  ! MPI information
-  TYPE(mpi_grp_t) :: mpi_grp
+  class(cable_netcdf_file_t), allocatable :: file
 
-  ! Tell the reader which slices of the data to retrieve
-  INTEGER, DIMENSION(2) :: Starts
+  class(cable_netcdf_decomp_t), allocatable :: decomp
 
-  ! Array to store the retrieved data
-  REAL, DIMENSION(:,:), ALLOCATABLE :: DataStorage
 END TYPE DatasetReader
 
 type(mpi_info_hints_t) :: mpi_info_hints_read
 
 CONTAINS
 
-FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
-    StepSize, ProcDomain, mpi_grp) RESULT(NewReader)
+FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarName,&
+    StepSize, land_decomp) RESULT(NewReader)
   !*## Purpose
   !
   ! Initialise a new datasetreader, which contains data on the same time
@@ -74,23 +64,20 @@ FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
   ! correct location when called with a year and timestep within said year.
 
   CHARACTER(LEN=*), INTENT(IN) :: TextFileList
-  CHARACTER(LEN=*), DIMENSION(:), INTENT(IN) :: VarNames
+  CHARACTER(LEN=*), INTENT(IN) :: VarName
   REAL, INTENT(IN) :: StepSize
-  TYPE(ProcessDomain), INTENT(IN) :: ProcDomain
-  TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
+  type(land_decomp_t) :: land_decomp
 
   TYPE(DatasetReader) :: NewReader
 
   ! Array to hold all the file names contained in the specified file
   CHARACTER(LEN=250), DIMENSION(:), ALLOCATABLE :: ListOfFiles
 
-  NewReader%mpi_grp = mpi_grp
-
   ! Get the list of files in the dataset from the text file
   ListOfFiles = get_files_from_text(TextFileList)
 
   ! Now sort them by their starting data and attach it to the Reader
-  NewReader%DatasetFiles = sort_by_start_date(ListOfFiles, mpi_grp)
+  NewReader%DatasetFiles = sort_by_start_date(ListOfFiles)
 
   ! To correctly retrieve indices later, we need to know at what year the
   ! dataset begins.
@@ -101,17 +88,14 @@ FUNCTION initialise_datasetreader_at_timestep(TextFileList, VarNames,&
   NewReader%IndexRange = assign_file_indices(NewReader%DatasetFiles)
 
   ! Attach the timestep and variables
-  NewReader%VarNames = VarNames
+  NewReader%VarName = VarName
   NewReader%TimestepSize = INT(StepSize)
-
-  ! Prepare the process information
-  NewReader%Starts = ProcDomain%ProcessDomainStart
-  ALLOCATE(NewReader%DataStorage(ProcDomain%ProcessDomainSize(1),&
-    ProcDomain%ProcessDomainSize(2)))
 
   ! To avoid any first call annoyances, we will set the first file in the
   ! dataset as the 'active' file and retrieve the desired variable ID.
   CALL mark_as_active(NewReader)
+
+  NewReader%decomp = io_decomp_grid(land_decomp, [land_decomp%land_count], CABLE_NETCDF_FLOAT)
 
 END FUNCTION initialise_datasetreader_at_timestep
 
@@ -174,7 +158,7 @@ FUNCTION get_files_from_text(InputFileList) RESULT(ListOfFiles)
 
 END FUNCTION get_files_from_text
   
-FUNCTION sort_by_start_date(ListOfFiles, mpi_grp) RESULT(SortedFiles)
+FUNCTION sort_by_start_date(ListOfFiles) RESULT(SortedFiles)
   !*## Purpose
   !
   ! Sort the NetCDF files contained in the passed list of files chronologically
@@ -186,18 +170,19 @@ FUNCTION sort_by_start_date(ListOfFiles, mpi_grp) RESULT(SortedFiles)
   ! of the netCDF datasets.
 
   CHARACTER(LEN=*), DIMENSION(:), ALLOCATABLE, INTENT(IN) :: ListOfFiles
-  TYPE(mpi_grp_t), INTENT(IN) :: mpi_grp
 
   CHARACTER(LEN=256), DIMENSION(:), ALLOCATABLE :: SortedFiles
 
   ! We want to store the first time value from the time variable of each file
   INTEGER, DIMENSION(:), ALLOCATABLE :: TimeValues
 
-  ! Iterators and iostatus
-  INTEGER :: FileCounter, ok, ncID, tID
+  ! Iterators
+  INTEGER :: FileCounter
 
   ! Indexer used for sorting
   INTEGER, DIMENSION(:), ALLOCATABLE :: Indexer
+
+  class(cable_netcdf_file_t), allocatable :: file
 
   ! Allocate the arrays based off the number of files
   ALLOCATE(SortedFiles(SIZE(ListOfFiles)), TimeValues(SIZE(ListOfFiles)))
@@ -205,22 +190,9 @@ FUNCTION sort_by_start_date(ListOfFiles, mpi_grp) RESULT(SortedFiles)
   ! Retrieve the time indices for each file
   GetStartTimes: DO FileCounter = 1, SIZE(SortedFiles)
     ! Open and inspect the netCDF file
-#ifdef __MPI__
-    CALL handle_ncstat(NF90_OPEN(ListOfFiles(FileCounter), IOR(NF90_NOWRITE,&
-      NF90_NETCDF4), ncID, comm=mpi_grp%comm%MPI_Val,&
-      info=MPI_INFO_NULL%MPI_Val),&
-      'Failed to open file '//ListOfFiles(FileCounter)//' while assembling '&
-      //'the dataset.')
-#else
-    CALL handle_ncstat(NF90_OPEN(ListOfFiles(FileCounter), NF90_NOWRITE,&
-      ncID),&
-      'Failed to open file '//ListOfFiles(FileCounter)//' while assembling '&
-      //'the dataset.')
-#endif
-
-    CALL handle_ncstat(NF90_INQ_VARID(ncID, 'time', tID))
-    CALL handle_ncstat(NF90_GET_VAR(ncID, tID,&
-      TimeValues(FileCounter:FileCounter), COUNT = [1]))
+    file = cable_netcdf_open_file(ListOfFiles(FileCounter))
+    call file%get_var("time", TimeValues(FileCounter), count=[1])
+    call file%close()
   END DO GetStartTimes
 
   ! Sort the start times, and use the indexer to then sort the files
@@ -246,30 +218,18 @@ SUBROUTINE identify_start_year(Reader)
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
   ! Integers used for status, IDs and time value
-  INTEGER :: ok, ncID, tID, StartTime, RefYear, SecondsToYears
+  INTEGER :: ok, tID, StartTime, RefYear, SecondsToYears
 
   ! String to hold the units attribute
   CHARACTER(LEN=33) :: TimeUnits
 
-#ifdef __MPI__
-  CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), IOR(NF90_NOWRITE,&
-    NF90_NETCDF4), ncID, comm=Reader%mpi_grp%comm%MPI_Val,&
-    info=MPI_INFO_NULL%MPI_Val),&
-    'Failed to open file '//TRIM(Reader%DatasetFiles(1))//' while identifying '&
-    //'the reference year for the dataset.')
-#else
-  CALL handle_ncstat(NF90_OPEN(TRIM(Reader%DatasetFiles(1)), NF90_NOWRITE,&
-    ncID),&
-    'Failed to open file '//TRIM(Reader%DatasetFiles(1))//' while identifying '&
-    //'the reference year for the dataset.')
-#endif
+  class(cable_netcdf_file_t), allocatable :: file
+
+  file = cable_netcdf_open_file(trim(Reader%DatasetFiles(1)))
   
-  tID = get_varid(ncID, ['time'])
-  CALL handle_ncstat(NF90_GET_VAR(ncID, tID, StartTime),&
-    'Error retrieving time variable from dataset.')
-  
-  CALL handle_ncstat(NF90_GET_ATT(ncID, tID, 'units', TimeUnits),&
-    'Time variables does not have units attribute.')
+  call file%get_var("time", StartTime)
+  call file%get_att("time", "units", TimeUnits)
+  call file%close()
 
   ! Check that the units are valid
   IF (TimeUnits(1:13) /= 'seconds since') THEN
@@ -310,7 +270,9 @@ FUNCTION assign_file_indices(DatasetFiles) RESULT(IndexRange)
   INTEGER, DIMENSION(:), ALLOCATABLE :: IndexRange
 
   ! Iterators, netCDF IDs and dimension sizes
-  INTEGER :: FileCounter, ncID, tID, ok, DimLength, TimeIndex
+  INTEGER :: FileCounter, DimLength, TimeIndex
+
+  class(cable_netcdf_file_t), allocatable :: file
 
   ! Allocate memory for the indices
   ALLOCATE(IndexRange(SIZE(DatasetFiles)))
@@ -322,10 +284,9 @@ FUNCTION assign_file_indices(DatasetFiles) RESULT(IndexRange)
   IndexRange(1) = TimeIndex
 
   CountFiles: DO FileCounter = 1, (SIZE(DatasetFiles)-1)
-    CALL handle_ncstat(NF90_OPEN(DatasetFiles(FileCounter), NF90_NOWRITE,&
-    ncID))
-    CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'time', tID))
-    CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength))
+    file = cable_netcdf_open_file(DatasetFiles(FileCounter))
+    call file%inq_dim_len("time", DimLength)
+    call file%close()
 
     TimeIndex = TimeIndex + DimLength
 
@@ -352,28 +313,25 @@ SUBROUTINE verify_validity(Reader)
   ! Iterator for the files and NetCDF ids
   INTEGER :: FileIter, ncID, tID, DimLength, ok
 
+  class(cable_netcdf_file_t), allocatable :: file
+
   ! Variables to store the end time of a dataset/start time of next
   ! Initialise interval to some absurd number
   REAL :: EndTime, NextStartTime, Interval
 
   ! Get the first end time manually, since we have nothing to check against
-  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(1), NF90_NOWRITE, ncID))
-  CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'time', tID))
-  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength))
-
-  tID = get_varid(ncID, ['time'])
-  CALL handle_ncstat(NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength]))
+  file = cable_netcdf_open_file(Reader%DatasetFiles(1))
+  call file%inq_dim_len("time", DimLength)
+  call file%get_var("time", EndTime, start=[DimLength])
+  call file%close()
 
   ! Now we can iterate through the remainder of the files
   DO FileIter = 2, SIZE(Reader%DatasetFiles)
-    CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIter), NF90_NOWRITE,&
-      ncID))
-    CALL handle_ncstat(NF90_INQ_DIMID(ncID, 'time', tID))
-    CALL handle_ncstat(NF90_INQUIRE_DIMENSION(ncID, tID, LEN=DimLength))
+    file = cable_netcdf_open_file(Reader%DatasetFiles(FileIter))
+    call file%inq_dim_len("time", DimLength)
 
-    tID = get_varid(ncID, ['time'])
     ! Get the first time from the new file
-    CALL handle_ncstat(NF90_GET_VAR(ncID, tID, NextStartTime, START=[1]))
+    call file%get_var("time", NextStartTime, start=[1])
 
     ! Only check the interval on the second iteration, as we have no interval
     ! to compare against on the first
@@ -388,7 +346,9 @@ SUBROUTINE verify_validity(Reader)
     END IF
 
     ! Set the new end time
-    CALL handle_ncstat(NF90_GET_VAR(ncID, tID, EndTime, START=[DimLength]))
+    call file%get_var("time", EndTime, start=[DimLength])
+
+    call file%close()
   END DO
 
 END SUBROUTINE verify_validity
@@ -431,64 +391,18 @@ SUBROUTINE open_new_file_in_reader(Reader, FileIndex)
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
-  TYPE(MPI_Info) :: info
-
   ! Close the old reader
-  IF (Reader%CurrentFileID /= -1) THEN
-    CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+  IF (allocated(Reader%file)) THEN
+    call Reader%file%close()
   END IF
 
-#ifdef __MPI__
-  CALL MPI_Info_create(info)
-  CALL mpi_info_set_hints(info, mpi_info_hints_read)
-  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
-    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID,&
-    comm=Reader%mpi_grp%comm%MPI_Val, info=info%MPI_Val))
-#else
-  CALL handle_ncstat(NF90_OPEN(Reader%DatasetFiles(FileIndex),&
-    IOR(NF90_NOWRITE, NF90_NETCDF4), Reader%CurrentFileID))
-#endif
+  Reader%file = cable_netcdf_open_file(Reader%DatasetFiles(FileIndex))
 
-  Reader%CurrentVarID = get_varid(Reader%CurrentFileID, Reader%VarNames)
   Reader%CurrentFileIndex = FileIndex
-
-  ! Set the variable to parallel access if MPI
-#ifdef __MPI__
-  CALL handle_ncstat(NF90_VAR_PAR_ACCESS(Reader%CurrentFileID,&
-    Reader%CurrentVarID, NF90_COLLECTIVE))
-#endif
 
 END SUBROUTINE open_new_file_in_reader
 
-SUBROUTINE get_spatial_dimensions(Reader, xDimLength, yDimLength)
-  !*## Purpose
-  !
-  ! Return the spatial dimensions of the data attached to the reader.
-  !
-  !## Method
-  !
-  ! Retrieve the length of the longitude and latitude dimensions by inspecting
-  ! the currently active file in the dataset.
-
-  TYPE(DatasetReader), INTENT(IN) :: Reader
-
-  INTEGER, INTENT(OUT) :: xDimLength, yDimLength
-
-  ! Store the dimension IDs and status
-  INTEGER :: xID, yID, ok
-
-  ! We already have the ncID from the reader
-  xID = get_dimid(Reader%CurrentFileID, LonNames)
-  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(Reader%CurrentFileID, xID,&
-    LEN=xDimLength))
-
-  yID = get_dimid(Reader%CurrentFileID, LatNames)
-  CALL handle_ncstat(NF90_INQUIRE_DIMENSION(Reader%CurrentFileID,&
-    yID, LEN=yDimLength))
-
-END SUBROUTINE get_spatial_dimensions
-
-SUBROUTINE get_data(Reader, Year, TimeIndex)
+SUBROUTINE get_data(Reader, Year, TimeIndex, values)
   !*## Purpose
   !
   ! Retrieve the data for a specified year and time step within that year.
@@ -502,6 +416,8 @@ SUBROUTINE get_data(Reader, Year, TimeIndex)
   INTEGER, INTENT(IN) :: Year, TimeIndex
 
   TYPE(DatasetReader), INTENT(INOUT) :: Reader
+
+  REAL, DIMENSION(:) :: values
 
   ! Iterator, status checker and index in relevant file
   INTEGER :: FileIndex, ok, IndexInDataset, IndexInFile
@@ -529,11 +445,7 @@ SUBROUTINE get_data(Reader, Year, TimeIndex)
     CALL open_new_file_in_reader(Reader, FileIndex)
   END IF
 
-  ! Actually retrieve the data and store it in the attached data storage
-  CALL handle_ncstat(NF90_GET_VAR(Reader%CurrentFileID, Reader%CurrentVarID,&
-    Reader%DataStorage,&
-    START=[Reader%Starts(1), Reader%Starts(2), IndexInFile]),&
-    "Failed on line 502 of datasetreader_module.F90")
+  call Reader%file%read_darray(Reader%VarName, values, Reader%decomp, frame=IndexInFile)
 
 END SUBROUTINE get_data
 
@@ -570,9 +482,9 @@ SUBROUTINE close_reader(Reader)
   !
   ! Close down the reader at end of use
 
-  TYPE(DatasetReader), INTENT(IN) :: Reader
+  TYPE(DatasetReader), INTENT(INOUT) :: Reader
 
-  CALL handle_ncstat(NF90_CLOSE(Reader%CurrentFileID))
+  call Reader%file%close()
 
 END SUBROUTINE close_reader
 

@@ -13,6 +13,7 @@ module cable_netcdf_nf90_mod
   use netcdf, only: nf90_def_dim
   use netcdf, only: nf90_def_var
   use netcdf, only: nf90_put_att
+  use netcdf, only: nf90_get_att
   use netcdf, only: nf90_put_var
   use netcdf, only: nf90_get_var
   use netcdf, only: nf90_inq_dimid
@@ -58,12 +59,18 @@ module cable_netcdf_nf90_mod
     procedure :: def_var => cable_netcdf_nf90_file_def_var
     procedure :: put_att_global_string => cable_netcdf_nf90_file_put_att_global_string
     procedure :: put_att_var_string => cable_netcdf_nf90_file_put_att_var_string
+    procedure :: get_att_global_string => cable_netcdf_nf90_file_get_att_global_string
+    procedure :: get_att_var_string => cable_netcdf_nf90_file_get_att_var_string
+    procedure :: inq_dim_len => cable_netcdf_nf90_file_inq_dim_len
+    procedure :: put_var_int32_0d => cable_netcdf_nf90_file_put_var_int32_0d
     procedure :: put_var_int32_1d => cable_netcdf_nf90_file_put_var_int32_1d
     procedure :: put_var_int32_2d => cable_netcdf_nf90_file_put_var_int32_2d
     procedure :: put_var_int32_3d => cable_netcdf_nf90_file_put_var_int32_3d
+    procedure :: put_var_real32_0d => cable_netcdf_nf90_file_put_var_real32_0d
     procedure :: put_var_real32_1d => cable_netcdf_nf90_file_put_var_real32_1d
     procedure :: put_var_real32_2d => cable_netcdf_nf90_file_put_var_real32_2d
     procedure :: put_var_real32_3d => cable_netcdf_nf90_file_put_var_real32_3d
+    procedure :: put_var_real64_0d => cable_netcdf_nf90_file_put_var_real64_0d
     procedure :: put_var_real64_1d => cable_netcdf_nf90_file_put_var_real64_1d
     procedure :: put_var_real64_2d => cable_netcdf_nf90_file_put_var_real64_2d
     procedure :: put_var_real64_3d => cable_netcdf_nf90_file_put_var_real64_3d
@@ -76,12 +83,15 @@ module cable_netcdf_nf90_mod
     procedure :: write_darray_real64_1d => cable_netcdf_nf90_file_write_darray_real64_1d
     procedure :: write_darray_real64_2d => cable_netcdf_nf90_file_write_darray_real64_2d
     procedure :: write_darray_real64_3d => cable_netcdf_nf90_file_write_darray_real64_3d
+    procedure :: get_var_int32_0d => cable_netcdf_nf90_file_get_var_int32_0d
     procedure :: get_var_int32_1d => cable_netcdf_nf90_file_get_var_int32_1d
     procedure :: get_var_int32_2d => cable_netcdf_nf90_file_get_var_int32_2d
     procedure :: get_var_int32_3d => cable_netcdf_nf90_file_get_var_int32_3d
+    procedure :: get_var_real32_0d => cable_netcdf_nf90_file_get_var_real32_0d
     procedure :: get_var_real32_1d => cable_netcdf_nf90_file_get_var_real32_1d
     procedure :: get_var_real32_2d => cable_netcdf_nf90_file_get_var_real32_2d
     procedure :: get_var_real32_3d => cable_netcdf_nf90_file_get_var_real32_3d
+    procedure :: get_var_real64_0d => cable_netcdf_nf90_file_get_var_real64_0d
     procedure :: get_var_real64_1d => cable_netcdf_nf90_file_get_var_real64_1d
     procedure :: get_var_real64_2d => cable_netcdf_nf90_file_get_var_real64_2d
     procedure :: get_var_real64_3d => cable_netcdf_nf90_file_get_var_real64_3d
@@ -211,6 +221,41 @@ contains
     call check_nf90(nf90_put_att(this%ncid, varid, att_name, att_value))
   end subroutine
 
+  subroutine cable_netcdf_nf90_file_get_att_global_string(this, att_name, att_value)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: att_name
+    character(len=*), intent(out) :: att_value
+    call check_nf90(nf90_get_att(this%ncid, NF90_GLOBAL, att_name, att_value))
+  end subroutine
+
+  subroutine cable_netcdf_nf90_file_get_att_var_string(this, var_name, att_name, att_value)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name, att_name
+    character(len=*), intent(out) :: att_value
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_get_att(this%ncid, varid, att_name, att_value))
+  end subroutine
+
+  subroutine cable_netcdf_nf90_file_inq_dim_len(this, dim_name, dim_len)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: dim_name
+    integer, intent(out) :: dim_len
+    integer :: dimid
+    call check_nf90(nf90_inq_dimid(this%ncid, dim_name, dimid))
+    call check_nf90(nf90_inquire_dimension(this%ncid, dimid, len=dim_len))
+  end subroutine
+
+  subroutine cable_netcdf_nf90_file_put_var_int32_0d(this, var_name, values, start, count)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    integer(kind=CABLE_NETCDF_INT32_KIND), intent(in) :: values
+    integer, intent(in), optional :: start(:), count(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_put_var(this%ncid, varid, values, start=start))
+  end subroutine
+
   subroutine cable_netcdf_nf90_file_put_var_int32_1d(this, var_name, values, start, count)
     class(cable_netcdf_nf90_file_t), intent(inout) :: this
     character(len=*), intent(in) :: var_name
@@ -241,6 +286,16 @@ contains
     call check_nf90(nf90_put_var(this%ncid, varid, values, start=start, count=count))
   end subroutine
 
+  subroutine cable_netcdf_nf90_file_put_var_real32_0d(this, var_name, values, start, count)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    real(kind=CABLE_NETCDF_REAL32_KIND), intent(in) :: values
+    integer, intent(in), optional :: start(:), count(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_put_var(this%ncid, varid, values, start=start))
+  end subroutine
+
   subroutine cable_netcdf_nf90_file_put_var_real32_1d(this, var_name, values, start, count)
     class(cable_netcdf_nf90_file_t), intent(inout) :: this
     character(len=*), intent(in) :: var_name
@@ -269,6 +324,16 @@ contains
     integer varid
     call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
     call check_nf90(nf90_put_var(this%ncid, varid, values, start=start, count=count))
+  end subroutine
+
+  subroutine cable_netcdf_nf90_file_put_var_real64_0d(this, var_name, values, start, count)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    real(kind=CABLE_NETCDF_REAL64_KIND), intent(in) :: values
+    integer, intent(in), optional :: start(:), count(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_put_var(this%ncid, varid, values, start=start))
   end subroutine
 
   subroutine cable_netcdf_nf90_file_put_var_real64_1d(this, var_name, values, start, count)
@@ -556,6 +621,16 @@ contains
     call cable_netcdf_write_darray_real64(this, var_name, values, decomp, fill_value, frame)
   end subroutine
 
+  subroutine cable_netcdf_nf90_file_get_var_int32_0d(this, var_name, values, start, count)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    integer(kind=CABLE_NETCDF_INT32_KIND), intent(out) :: values
+    integer, intent(in), optional :: start(:), count(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_get_var(this%ncid, varid, values, start=start))
+  end subroutine
+
   subroutine cable_netcdf_nf90_file_get_var_int32_1d(this, var_name, values, start, count)
     class(cable_netcdf_nf90_file_t), intent(inout) :: this
     character(len=*), intent(in) :: var_name
@@ -586,6 +661,16 @@ contains
     call check_nf90(nf90_get_var(this%ncid, varid, values, start=start, count=count))
   end subroutine
 
+  subroutine cable_netcdf_nf90_file_get_var_real32_0d(this, var_name, values, start, count)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    real(kind=CABLE_NETCDF_REAL32_KIND), intent(out) :: values
+    integer, intent(in), optional :: start(:), count(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_get_var(this%ncid, varid, values, start=start))
+  end subroutine
+
   subroutine cable_netcdf_nf90_file_get_var_real32_1d(this, var_name, values, start, count)
     class(cable_netcdf_nf90_file_t), intent(inout) :: this
     character(len=*), intent(in) :: var_name
@@ -614,6 +699,16 @@ contains
     integer varid
     call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
     call check_nf90(nf90_get_var(this%ncid, varid, values, start=start, count=count))
+  end subroutine
+
+  subroutine cable_netcdf_nf90_file_get_var_real64_0d(this, var_name, values, start, count)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    real(kind=CABLE_NETCDF_REAL64_KIND), intent(out) :: values
+    integer, intent(in), optional :: start(:), count(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_get_var(this%ncid, varid, values, start=start))
   end subroutine
 
   subroutine cable_netcdf_nf90_file_get_var_real64_1d(this, var_name, values, start, count)
