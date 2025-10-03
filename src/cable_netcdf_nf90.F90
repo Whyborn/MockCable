@@ -12,6 +12,7 @@ module cable_netcdf_nf90_mod
   use netcdf, only: nf90_strerror
   use netcdf, only: nf90_def_dim
   use netcdf, only: nf90_def_var
+  use netcdf, only: nf90_def_var_chunking
   use netcdf, only: nf90_put_att
   use netcdf, only: nf90_get_att
   use netcdf, only: nf90_put_var
@@ -33,6 +34,8 @@ module cable_netcdf_nf90_mod
   use netcdf, only: NF90_FILL_DOUBLE
   use netcdf, only: NF90_MAX_VAR_DIMS
   use netcdf, only: NF90_GLOBAL
+  use netcdf, only: NF90_CONTIGUOUS
+  use netcdf, only: NF90_CHUNKED
 
   implicit none
 
@@ -57,6 +60,7 @@ module cable_netcdf_nf90_mod
     procedure :: sync => cable_netcdf_nf90_file_sync
     procedure :: def_dims => cable_netcdf_nf90_file_def_dims
     procedure :: def_var => cable_netcdf_nf90_file_def_var
+    procedure :: def_var_chunking => cable_netcdf_nf90_file_def_var_chunking
     procedure :: put_att_global_string => cable_netcdf_nf90_file_put_att_global_string
     procedure :: put_att_var_string => cable_netcdf_nf90_file_put_att_var_string
     procedure :: get_att_global_string => cable_netcdf_nf90_file_get_att_global_string
@@ -122,6 +126,19 @@ contains
       ! TODO: abort
     end select
   end function type_nf90
+
+  function storage_nf90(storage)
+    integer, intent(in) :: storage
+    integer :: storage_nf90
+    select case(storage)
+    case(CABLE_NETCDF_CONTIGUOUS)
+      storage_nf90 = NF90_CONTIGUOUS
+    case(CABLE_NETCDF_CHUNKED)
+      storage_nf90 = NF90_CHUNKED
+    case default
+      ! TODO: abort
+    end select
+  end function storage_nf90
 
   subroutine check_nf90(status)
     integer, intent ( in) :: status
@@ -205,6 +222,15 @@ contains
       call check_nf90(nf90_inq_dimid(this%ncid, dim_names(i), dimids(i)))
     end do
     call check_nf90(nf90_def_var(this%ncid, var_name, type_nf90(type), dimids, tmp))
+  end subroutine
+
+  subroutine cable_netcdf_nf90_file_def_var_chunking(this, var_name, storage, chunksizes)
+    class(cable_netcdf_nf90_file_t), intent(inout) :: this
+    character(len=*), intent(in) :: var_name
+    integer, intent(in) :: storage, chunksizes(:)
+    integer varid
+    call check_nf90(nf90_inq_varid(this%ncid, var_name, varid))
+    call check_nf90(nf90_def_var_chunking(this%ncid, varid, storage_nf90(storage), chunksizes))
   end subroutine
 
   subroutine cable_netcdf_nf90_file_put_att_global_string(this, att_name, att_value)
