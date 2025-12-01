@@ -2,7 +2,7 @@ function initialise_datasetreader(text_file_list, var_name,&
     timestep_size, decomp) result(new_reader)
 
   character(len=*), intent(in) :: text_file_list, var_name
-  integer, intent(in) :: timestep
+  type(timedelta), intent(in) :: timestep
   type(land_decomp_t) :: decomp
   type(dataset_reader) :: new_reader
 
@@ -48,7 +48,7 @@ function read_lines(text_file) result(lines)
 
   if ctr == 0 then
     write(error_unit, '(A)') 'File '//text_file//' was empty.'
-stop 1
+    stop 1
   end if
 
   allocate(lines(ctr))
@@ -81,41 +81,53 @@ function sort_by_start_date(file_list) result(sorted_files)
 end function sort_by_start_date
 
 subroutine identify_start_year(this)
+  !*## Purpose
+  !
+  ! Identify which year the dataset begins.
+
   type(dataset_reader), intent(inout) :: this
 
-  integer :: ncstat, start_time
+  integer :: ncstat, first_time, ref_year, ref_month, ref_day
   character(len=33) :: time_units
-
+  type(datetime) :: ref_time, start_time
   class(cable_netcdf_file_t), allocatable :: file
 
+  ! Set the current file to the first one in the list
   call this%set_current_file(1)
 
+  ! The time attribute must be "seconds since YYYY/MM/DD"
   file%get_att("time", "units", time_units)
-
   if (time_units(1:13) /= 'seconds_since') then
     write(error_unit,'(A)') 'Invalid units for time attribute.'
     stop 1
   end if
 
+  ! Create datetime object for the start time
   read(time_units(15:18), '(I4)') ref_year
+  read(time_units(20:21), '(I2)') ref_month
+  read(time_units(23:24), '(I2)') ref_day
 
-  file%get_var("time", start_time, count=[1])
+  ref_time = datetime(year=ref_year, month=ref_month, day=ref_day)
 
-  seconds_to_years = floor(real(start_time) / (3600 * 24 * 365))
+  ! How far from that ref time is the start time?
+  file%get_var("time", first_time, count=[1])
 
-  reader%start_year = ref_year + seconds_to_years
+  ! Now compute the new datetime by adding the timedelta
+  this%start_time = ref_time + timedelta(seconds=first_time)
 
 end subroutine identify_start_year
   
 subroutine assign_file_indices(this)
+  !*# Purpose
+  !
+  ! Assign the range of time indices to each file to accelerate searching.
   type(dataset_reader), intent(inout) :: this
 
   integer, dimension(:), allocatable :: index_range
-
   integer :: ctr, dim_l
 
+  ! We want to set the indices to say "this is where the nth file starts"
   allocate(index_range(size(this%dataset_files)))
-
   index_range(1) = 1
 
   do ctr = 1, (size(dataset_files) - 1)
@@ -145,5 +157,30 @@ subroutine set_current_file(this, file_number)
 
 end subroutine set_current_file
 
-subroutine get_data(this, year, timestep
+subroutine get_data(this, year, timestep_count, data)
+  !*## Purpose
+  !
+  ! Retrieve the array of data associated with a given timestep in the
+  ! specified year.
+
+  type(dataset_reader), intent(inout) :: this
+  integer, intent(in) :: year, timestep_count
+  real, dimension(:), intent(out) :: data
+
+  curr_time = datetime(year=year) * timestep_count * this%timestep_size
+  time_diff = curr_time - this%start_time
+
+  total_minutes = time_diff%getdays() * d2m + time_diff%gethours() * 60 +&
+    time_diff%getminutes()
+  timestep_as_minutes = this%timestep_size%getdays() * d2m +&
+    this%timestep_size%get_hours() * 60 +&
+    this%timestep_size%get_minutes()
+  ind = total_minutes / timestep_as_minutes
+
+  this%set_file_by_ind(ind)
+
+  this%file%read_darray(....)
+
+end subroutine get_data
+
 
